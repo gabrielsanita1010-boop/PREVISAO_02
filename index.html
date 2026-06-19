@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PREVFISH — Previsão de Vendas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&family=Oxanium:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="css/style.css"/>
+
+</head>
+<body>
+
+<!-- ════════════════ LOADING ════════════════ -->
+<!-- ════════════════ TELA DE LOGIN ════════════════ -->
+<div id="tela-login">
+  <div class="login-card">
+    <div class="login-logo">PREVFISH</div>
+    <div class="login-title">Bem-vindo</div>
+    <div class="login-sub">Previsão de Vendas — Faça seu login</div>
+
+    <div class="login-field">
+      <label class="login-label" for="login-email">E-mail</label>
+      <input class="login-input" id="login-email" type="email"
+        placeholder="seu@email.com"
+        autocomplete="email"
+        onkeydown="if(event.key==='Enter') document.getElementById('login-senha').focus()"/>
+    </div>
+
+    <div class="login-field">
+      <label class="login-label" for="login-senha">Senha</label>
+      <div class="login-senha-wrap">
+        <input class="login-input" id="login-senha" type="password"
+          placeholder="••••••••"
+          autocomplete="current-password"
+          onkeydown="if(event.key==='Enter') fazerLogin()"/>
+        <button class="login-senha-toggle" onclick="toggleSenha()" title="Mostrar/ocultar" tabindex="-1">👁</button>
+      </div>
+    </div>
+
+    <div class="login-erro" id="login-erro">❌ E-mail ou senha incorretos.</div>
+
+    <button class="btn-login" id="btn-login" onclick="fazerLogin()">Entrar</button>
+
+    <div style="text-align:center;margin-top:16px;font-family:var(--mono);font-size:11px;color:var(--muted2);line-height:1.7">
+      Esqueceu sua senha?<br>
+      Entre em contato com o administrador:<br>
+      <a href="https://wa.me/5517996324859" target="_blank"
+         style="color:var(--accent);font-weight:700;text-decoration:none;font-size:12px">
+        📲 Falar no WhatsApp
+      </a>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- ════════════════ TELA TROCA DE SENHA (1° ACESSO) ════════════════ -->
+<div id="tela-trocar-senha">
+  <div class="trocar-card">
+    <div class="login-logo">PREVFISH</div>
+    <div class="login-title">Crie sua senha</div>
+
+    <div class="trocar-aviso">
+      🔐 Este é seu primeiro acesso. Por segurança, crie uma senha pessoal antes de continuar.
+    </div>
+
+    <div class="login-field">
+      <label class="login-label" for="troca-nova">Nova senha</label>
+      <div class="login-senha-wrap">
+        <input class="login-input" id="troca-nova" type="password"
+          placeholder="Mínimo 6 caracteres"
+          onkeydown="if(event.key==='Enter') document.getElementById('troca-confirma').focus()"/>
+        <button class="login-senha-toggle" onclick="toggleSenhaEsq('troca-nova')" tabindex="-1">👁</button>
+      </div>
+    </div>
+
+    <div class="login-field">
+      <label class="login-label" for="troca-confirma">Confirmar senha</label>
+      <div class="login-senha-wrap">
+        <input class="login-input" id="troca-confirma" type="password"
+          placeholder="Repita a senha"
+          onkeydown="if(event.key==='Enter') salvarTrocaSenha()"/>
+        <button class="login-senha-toggle" onclick="toggleSenhaEsq('troca-confirma')" tabindex="-1">👁</button>
+      </div>
+    </div>
+
+    <div class="trocar-erro" id="troca-erro"></div>
+
+    <button class="btn-login" onclick="salvarTrocaSenha()">Confirmar e entrar</button>
+  </div>
+</div>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <p id="loadingMsg">Conectando ao banco de dados...</p>
+</div>
+
+<!-- ════════════════ TOAST ════════════════ -->
+<div class="toast" id="toast"></div>
+
+<!-- ════════════════ MODAL CONFIRMAÇÃO ════════════════ -->
+<div class="modal-overlay" id="modal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <h3 id="modal-titulo">Confirmar ação</h3>
+    <p id="modal-desc">Tem certeza?</p>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="fecharModal()">Cancelar</button>
+      <button class="btn-confirm" id="modal-confirmar">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ MODAL RESUMO / DASHBOARD ════════════════ -->
+<div class="resumo-overlay" id="resumo-overlay" onclick="fecharResumo(event)">
+  <div class="resumo-sheet">
+    <div class="resumo-header">
+      <div class="resumo-titulo">📊 Resumo geral</div>
+      <button class="resumo-fechar" onclick="fecharResumo()">✕</button>
+    </div>
+    <div class="resumo-body" id="resumo-body">
+      <!-- preenchido dinamicamente -->
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ APP PRINCIPAL ════════════════ -->
+<div id="app">
+
+  <!-- HEADER UNIFICADO -->
+  <div class="app-header">
+    <!-- Linha superior: logo + info + sair -->
+    <div class="header-top">
+      <div class="header-logo">Previsão de Vendas</div>
+      <div class="header-info">
+        <span class="header-vendedor" id="hdr-vendedor">—</span>
+
+      </div>
+      <button class="btn-icon" onclick="abrirResumo()" title="Ver Resumo" id="btn-resumo">
+        <span>📊</span>
+        <span class="btn-resumo-txt">Resumo</span>
+      </button>
+      <button class="btn-icon btn-relatorio" onclick="exportarPDF()" title="Gerar Relatório PDF" id="btn-pdf">
+        <span class="btn-relatorio-icon">📄</span>
+        <span class="btn-relatorio-txt">Relatório</span>
+      </button>
+      <button class="btn-icon" onclick="sair()" title="Sair">⏏</button>
+    </div>
+    <!-- Stats bar: progresso + totais por fase/unidade -->
+    <div class="header-stats" id="header-stats">
+      <!-- Progresso de clientes -->
+      <div class="hstat-prog">
+        <div class="hstat-prog-label">
+          <span>Clientes</span>
+          <span id="prog-txt">0/0</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="prog-fill" style="width:0%"></div>
+        </div>
+      </div>
+      <!-- Stats dinâmicos: atendidos / sem-venda / total kg / por fase -->
+      <div class="hstat">
+        <div class="hstat-val" id="res-atendidos">0</div>
+        <div class="hstat-lbl">Atendidos</div>
+      </div>
+      <div class="hstat">
+        <div class="hstat-val warn" id="res-sem-venda">0</div>
+        <div class="hstat-lbl">Sem venda</div>
+      </div>
+      <div class="hstat">
+        <div class="hstat-val" id="res-total-kg">0</div>
+        <div class="hstat-lbl">Total kg</div>
+      </div>
+      <!-- Totais por fase inseridos dinamicamente -->
+      <div id="hdr-fase-stats"></div>
+      <!-- Totais por unidade inseridos dinamicamente -->
+      <div id="hdr-unid-stats"></div>
+    </div>
+  </div>
+
+  <!-- CORPO -->
+  <div class="app-layout">
+
+  <!-- PAINEL LATERAL DE CLIENTES (desktop) — esquerda -->
+  <div class="painel-clientes">
+    <div class="painel-titulo">
+      Clientes
+      <span id="painel-pendentes">0 pendentes</span>
+    </div>
+    <div id="painel-lista"></div>
+  </div>
+
+  <!-- COLUNA PRINCIPAL — direita -->
+  <div class="app-body">
+
+    <!-- Botão mobile para ver lista de clientes -->
+    <button class="btn-lista-clientes" onclick="abrirDrawer()">
+      📋 Ver lista de clientes
+      <span id="btn-pendentes-badge" style="margin-left:auto;background:var(--warn);color:#000;border-radius:20px;padding:1px 7px;font-size:10px"></span>
+    </button>
+
+    <!-- ══ SEÇÃO 1 — CLIENTE ATUAL ══ -->
+    <div class="secao">
+      <div class="secao-header">
+        <div class="secao-num">1</div>
+        <div class="secao-titulo">Cliente atual</div>
+      </div>
+      <div class="secao-body">
+
+        <!-- Display do cliente -->
+        <div class="cliente-display">
+          <div class="cliente-label">Lançando para</div>
+          <div class="cliente-nome" id="disp-nome-cliente">—</div>
+          <div class="cliente-cod" id="disp-cod-cliente">—</div>
+          <div id="disp-status-cliente" class="cliente-status status-pendente">
+            ● Pendente
+          </div>
+        </div>
+
+        <!-- Navegação -->
+        <div class="nav-clientes">
+          <button class="btn-nav" id="btn-ant" onclick="irCliente(-1)" disabled>←</button>
+          <select class="nav-sel" id="sel-cliente" onchange="irClienteDireto(this.value)"></select>
+          <button class="btn-nav" id="btn-prox" onclick="irCliente(1)">→</button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══ SEÇÃO 2 — FORMULÁRIO DE PRODUTO ══ -->
+    <div class="secao">
+      <div class="secao-header">
+        <div class="secao-num">2</div>
+        <div class="secao-titulo">Adicionar produto</div>
+      </div>
+      <div class="secao-body">
+
+        <!-- Chip de edição (visível ao editar) -->
+        <div class="editing-chip" id="chip-editar" style="display:none">
+          ✏️ Editando item <button onclick="cancelarEdicao()">✕</button>
+        </div>
+
+        <div class="form-grid">
+          <!-- Produto — seletor avançado (linha inteira) -->
+          <div class="form-full">
+            <label class="form-label">Produto</label>
+
+            <!-- Campo oculto que guarda o valor selecionado (cod) -->
+            <input type="hidden" id="f-produto"/>
+
+            <div class="prod-selector" id="prod-selector">
+
+              <!-- Barra de busca -->
+              <div class="prod-search-wrap">
+                <span class="prod-search-icon">🔍</span>
+                <input class="prod-search" id="prod-search"
+                  type="text" placeholder="Buscar produto..."
+                  oninput="filtrarProdutos()"
+                  onfocus="abrirDropdown()"
+                  onkeydown="navDropdown(event)"
+                  autocomplete="off"/>
+                <button class="prod-search-clear" id="prod-search-clear"
+                  onclick="limparSelecaoProduto()" title="Limpar">✕</button>
+              </div>
+
+              <!-- Filtros suspensos: Fase / Linha / Unidade -->
+              <div class="filtros-selects" id="filtros-selects">
+                <div class="filtro-select-wrap">
+                  <span class="filtro-select-label">Unidade</span>
+                  <select class="filtro-select" id="sel-unid" onchange="selecionarFiltro('unidade', this.value)">
+                    <option value="">Todas</option>
+                  </select>
+                </div>
+                <div class="filtro-select-wrap">
+                  <span class="filtro-select-label">Fase</span>
+                  <select class="filtro-select" id="sel-fase" onchange="selecionarFiltro('fase', this.value)">
+                    <option value="">Todas</option>
+                  </select>
+                </div>
+                <div class="filtro-select-wrap">
+                  <span class="filtro-select-label">Linha</span>
+                  <select class="filtro-select" id="sel-linha" onchange="selecionarFiltro('linha', this.value)">
+                    <option value="">Todas</option>
+                  </select>
+                </div>
+
+              </div><!-- /filtros-selects -->
+
+              <!-- Produto selecionado (chip) -->
+              <div class="prod-selecionado-chip" id="prod-chip">
+                <div style="flex:1;min-width:0">
+                  <div class="prod-chip-nome" id="prod-chip-nome">—</div>
+                  <div class="prod-chip-meta" id="prod-chip-meta"></div>
+                </div>
+                <button class="prod-chip-clear" onclick="limparSelecaoProduto()" title="Remover">✕</button>
+              </div>
+
+              <!-- Dropdown de resultados -->
+              <div class="prod-dropdown" id="prod-dropdown"></div>
+
+            </div>
+
+            <!-- Resumo de totais do carrinho por fase -->
+            <div class="prod-resumo" id="prod-resumo" style="display:none"></div>
+          </div>
+
+          <!-- Preview KG -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px" class="form-full">
+            <div>
+              <label class="form-label">Quantidade</label>
+              <input class="form-input" type="text" id="f-qtd"
+                placeholder="0" inputmode="numeric" pattern="[0-9]*"
+                oninput="mascaraQtd(this)"
+                onkeydown="return soInteiroKey(event)"/>
+            </div>
+            <div>
+              <label class="form-label">Total em kg</label>
+              <div class="kg-preview">
+                <span class="kg-valor" id="kg-valor">0</span>
+                <span class="kg-unid">kg</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="form-acoes">
+          <button class="btn-add" id="btn-add-item" onclick="adicionarItem()">
+            + Adicionar item
+          </button>
+          <button class="btn-limpar" onclick="limparFormulario()">Limpar</button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══ SEÇÃO 3 — LISTA / CARRINHO ══ -->
+    <div class="secao">
+      <div class="secao-header">
+        <div class="secao-num">3</div>
+        <div class="secao-titulo">Itens lançados</div>
+      </div>
+      <div class="secao-body" id="lista-wrap">
+
+        <!-- Vazia por padrão -->
+        <div class="lista-vazia" id="lista-vazia">
+          <div class="icon">📋</div>
+          <p>Nenhum item adicionado.</p>
+          <p style="margin-top:4px;font-size:11px">Use o formulário acima para adicionar produtos.</p>
+        </div>
+
+        <!-- Cards dos itens -->
+        <div id="lista-itens"></div>
+
+        <!-- Rodapé total -->
+        <div class="lista-total" id="lista-total" style="display:none">
+          <span class="total-label">Total do cliente</span>
+          <span class="total-valor" id="total-kg-display">0 kg</span>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ══ SEÇÃO 4 — AÇÕES DO CLIENTE ══ -->
+    <div class="secao">
+      <div class="secao-header">
+        <div class="secao-num">4</div>
+        <div class="secao-titulo">Confirmar cliente</div>
+      </div>
+      <div class="secao-body">
+        <div class="acoes-grid">
+          <button class="btn-sem-venda" onclick="registrarSemVenda()">
+            🚫 Sem venda
+          </button>
+          <button class="btn-finalizar" onclick="confirmarFinalizar()">
+            ✅ Confirmar cliente
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ SEÇÃO 5 — SALVAR TUDO NA NUVEM ══ -->
+    <div class="secao secao-salvar-final" id="secao-salvar-final">
+      <div class="secao-body" style="padding:16px">
+        <div class="salvar-final-info" id="salvar-final-info">
+          <!-- preenchido dinamicamente -->
+        </div>
+        <button class="btn-salvar-final" id="btn-salvar-final" onclick="salvarTudoFinal()" disabled>
+          ☁️ Concluir previsão de vendas
+        </button>
+        <p class="salvar-final-hint">Registre todos os lançamentos de uma vez ao terminar.</p>
+      </div>
+    </div>
+
+  </div><!-- /app-body -->
+
+  </div><!-- /app-layout -->
+</div><!-- /app -->
+
+<!-- DRAWER MOBILE -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="fecharDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-header">
+    <span class="drawer-titulo">Clientes</span>
+    <button class="drawer-fechar" onclick="fecharDrawer()">✕</button>
+  </div>
+  <div id="drawer-lista"></div>
+</div>
+
+
+<!-- ════════════════ APP ADMIN ════════════════ -->
+<div id="app-admin" style="display:none">
+
+  <div class="app-header">
+    <div class="header-top">
+      <div class="header-logo">⚙️ Admin</div>
+      <div class="header-info">
+        <span class="header-vendedor" id="admin-hdr-nome">—</span>
+      </div>
+      <button class="btn-icon" onclick="sair()" title="Sair">⏏</button>
+    </div>
+    <div class="admin-nav">
+      <button class="admin-tab ativo" id="tab-dashboard" onclick="adminTab('dashboard')">📊 Dashboard</button>
+      <button class="admin-tab"       id="tab-usuarios"  onclick="adminTab('usuarios')">👥 Usuários</button>
+      <button class="admin-tab"       id="tab-clientes"  onclick="adminTab('clientes')">📋 Clientes</button>
+      <button class="admin-tab"       id="tab-produtos"  onclick="adminTab('produtos')">🐟 Produtos</button>
+    </div>
+  </div>
+
+  <div class="admin-body">
+
+    <div id="admin-dashboard" class="admin-content">
+      <div class="admin-section-title">Visão Geral — <span id="admin-periodo">—</span></div>
+      <div id="admin-dash-cards" class="admin-cards"></div>
+      <div class="admin-section-title" style="margin-top:20px">Status por Vendedor</div>
+      <div id="admin-dash-tabela"></div>
+    </div>
+
+    <div id="admin-usuarios" class="admin-content" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+        <div class="admin-section-title" style="margin:0">Usuários Cadastrados</div>
+        <button class="admin-btn-primary" onclick="abrirModalNovoUsuario()">+ Novo usuário</button>
+      </div>
+      <div id="admin-usuarios-tabela"></div>
+    </div>
+
+    <div id="admin-clientes" class="admin-content" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+        <div class="admin-section-title" style="margin:0">Clientes Cadastrados</div>
+        <input class="admin-search" id="admin-busca-cliente" type="text"
+          placeholder="🔍 Buscar cliente ou vendedor..."
+          oninput="filtrarClientesAdmin()"/>
+      </div>
+      <div id="admin-clientes-tabela"></div>
+    </div>
+
+    <div id="admin-produtos" class="admin-content" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+        <div class="admin-section-title" style="margin:0">Catálogo de Produtos</div>
+        <input class="admin-search" id="admin-busca-produto" type="text"
+          placeholder="🔍 Buscar produto..."
+          oninput="filtrarProdutosAdmin()"/>
+      </div>
+      <div id="admin-produtos-tabela"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MODAL NOVO USUÁRIO -->
+<div class="modal-overlay" id="modal-novo-usuario">
+  <div class="modal-sheet" style="max-width:400px">
+    <div class="modal-handle"></div>
+    <h3>Novo Usuário</h3>
+    <div style="display:flex;flex-direction:column;gap:12px;margin:16px 0">
+      <div>
+        <label class="form-label">Nome</label>
+        <input class="form-input" id="nu-nome" type="text" placeholder="Nome completo"/>
+      </div>
+      <div>
+        <label class="form-label">Nome reduzido</label>
+        <input class="form-input" id="nu-reduzido" type="text" placeholder="Ex: THIAGO"/>
+      </div>
+      <div>
+        <label class="form-label">E-mail</label>
+        <input class="form-input" id="nu-email" type="email" placeholder="email@exemplo.com"/>
+      </div>
+      <div>
+        <label class="form-label">Código do vendedor</label>
+        <input class="form-input" id="nu-codigo" type="text" placeholder="Ex: 17" inputmode="numeric"/>
+      </div>
+      <div>
+        <label class="form-label">Perfil</label>
+        <select class="form-input" id="nu-perfil">
+          <option value="VENDEDOR">Vendedor</option>
+          <option value="ADMIN">Administrador</option>
+        </select>
+      </div>
+      <div id="nu-erro" style="display:none;color:var(--danger);font-size:12px;font-family:var(--mono)"></div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="fecharModalNovoUsuario()">Cancelar</button>
+      <button class="btn-confirm" onclick="salvarNovoUsuario()">Criar usuário</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/sheets.js"></script>
+<script src="js/app.js"></script>
+<script src="js/admin.js"></script>
+</body>
+</html>
