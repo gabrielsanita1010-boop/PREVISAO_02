@@ -451,36 +451,44 @@
         </div>
       </div>
 
+      <!-- CHIPS DE FILTROS ATIVOS -->
+      <div id="admin-chips-filtros"></div>
+
+      <!-- CARDS -->
       <div class="admin-section-title">Visão Geral — <span id="admin-periodo">—</span></div>
       <div id="admin-dash-cards" class="admin-cards"></div>
 
+      <!-- RANKINGS -->
       <div class="admin-section-title" style="margin-top:20px">Rankings</div>
       <div id="admin-dash-rankings" class="admin-rankings"></div>
 
+      <!-- GRÁFICOS -->
       <div class="admin-section-title" style="margin-top:20px">Distribuição por Fase, Linha e Unidade</div>
       <div class="admin-graficos">
         <div class="admin-grafico-box">
-          <div class="admin-section-title" style="margin-bottom:8px">Fase</div>
-          <div style="position:relative;width:100%;height:180px">
-            <canvas id="chartFase" role="img" aria-label="kg por fase de racao">Distribuição por fase.</canvas>
+          <div class="admin-grafico-titulo">Fase</div>
+          <div style="position:relative;width:100%;height:190px">
+            <canvas id="chartFase" role="img" aria-label="kg por fase">Distribuição por fase.</canvas>
           </div>
         </div>
         <div class="admin-grafico-box">
-          <div class="admin-section-title" style="margin-bottom:8px">Linha</div>
-          <div style="position:relative;width:100%;height:180px">
-            <canvas id="chartLinha" role="img" aria-label="kg por linha de produto">Distribuição por linha.</canvas>
+          <div class="admin-grafico-titulo">Linha</div>
+          <div style="position:relative;width:100%;height:190px">
+            <canvas id="chartLinha" role="img" aria-label="kg por linha">Distribuição por linha.</canvas>
           </div>
         </div>
         <div class="admin-grafico-box">
-          <div class="admin-section-title" style="margin-bottom:8px">Unidade</div>
-          <div style="position:relative;width:100%;height:180px">
+          <div class="admin-grafico-titulo">Unidade</div>
+          <div style="position:relative;width:100%;height:190px">
             <canvas id="chartUnid" role="img" aria-label="kg por unidade">Distribuição por unidade.</canvas>
           </div>
         </div>
       </div>
 
+      <!-- TABELA VENDEDORES -->
       <div class="admin-section-title" style="margin-top:20px">Status por Vendedor</div>
       <div id="admin-dash-tabela"></div>
+
     </div>
 
     <div id="admin-usuarios" class="admin-content" style="display:none">
@@ -553,6 +561,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <script src="js/sheets.js"></script>
 <script src="js/app.js"></script>
 <script src="js/admin.js"></script>
