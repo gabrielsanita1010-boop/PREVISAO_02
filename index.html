@@ -458,31 +458,44 @@
       <div class="admin-section-title">Visão Geral — <span id="admin-periodo">—</span></div>
       <div id="admin-dash-cards" class="admin-cards"></div>
 
-      <!-- RANKINGS -->
-      <div class="admin-section-title" style="margin-top:20px">Rankings</div>
-      <div id="admin-dash-rankings" class="admin-rankings"></div>
+      <!-- Rankings e gráficos renderizados via JS em admin-rank-graf-grid -->
 
-      <!-- GRÁFICOS -->
-      <div class="admin-section-title" style="margin-top:20px">Distribuição por Fase, Linha e Unidade</div>
-      <div class="admin-graficos">
-        <div class="admin-grafico-box">
-          <div class="admin-grafico-titulo">Fase</div>
-          <div style="position:relative;width:100%;height:190px">
-            <canvas id="chartFase" role="img" aria-label="kg por fase">Distribuição por fase.</canvas>
+      <!-- GRID RANKINGS + GRÁFICOS EMPILHADOS -->
+      <div class="admin-section-title" style="margin-top:20px">Rankings e Distribuição</div>
+      <div class="admin-rank-graf-grid">
+
+        <!-- Rankings -->
+        <div class="admin-rank-box">
+          <div class="admin-rank-titulo">🏆 Top 10 clientes por kg</div>
+          <div id="admin-rank-clientes"></div>
+        </div>
+        <div class="admin-rank-box">
+          <div class="admin-rank-titulo">👥 Todos os vendedores por kg</div>
+          <div class="admin-rank-scroll" id="admin-rank-vendedores"></div>
+        </div>
+
+        <!-- Gráficos empilhados -->
+        <div class="admin-graficos-col">
+          <div class="admin-grafico-box">
+            <div class="admin-grafico-titulo">Fase</div>
+            <div style="position:relative;width:100%;height:160px">
+              <canvas id="chartFase" role="img" aria-label="kg por fase">Distribuição por fase.</canvas>
+            </div>
+          </div>
+          <div class="admin-grafico-box">
+            <div class="admin-grafico-titulo">Unidade</div>
+            <div style="position:relative;width:100%;height:120px">
+              <canvas id="chartUnid" role="img" aria-label="kg por unidade">Distribuição por unidade.</canvas>
+            </div>
+          </div>
+          <div class="admin-grafico-box">
+            <div class="admin-grafico-titulo">Linha</div>
+            <div style="position:relative;width:100%;height:160px">
+              <canvas id="chartLinha" role="img" aria-label="kg por linha">Distribuição por linha.</canvas>
+            </div>
           </div>
         </div>
-        <div class="admin-grafico-box">
-          <div class="admin-grafico-titulo">Linha</div>
-          <div style="position:relative;width:100%;height:190px">
-            <canvas id="chartLinha" role="img" aria-label="kg por linha">Distribuição por linha.</canvas>
-          </div>
-        </div>
-        <div class="admin-grafico-box">
-          <div class="admin-grafico-titulo">Unidade</div>
-          <div style="position:relative;width:100%;height:190px">
-            <canvas id="chartUnid" role="img" aria-label="kg por unidade">Distribuição por unidade.</canvas>
-          </div>
-        </div>
+
       </div>
 
       <!-- TABELA VENDEDORES -->
