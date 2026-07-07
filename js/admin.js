@@ -123,6 +123,19 @@ function adminTab(tab) {
   if (renders[tab]) renders[tab]();
 }
 
+
+// ── Calcula dias úteis Seg–Sáb do mês ──
+function _diasUteis(mes, ano) {
+  const m    = parseInt(mes) - 1;
+  const y    = parseInt(ano);
+  const dias = new Date(y, m + 1, 0).getDate();
+  let count  = 0;
+  for (let d = 1; d <= dias; d++) {
+    if (new Date(y, m, d).getDay() !== 0) count++; // exclui domingo
+  }
+  return count;
+}
+
 // ════════════════════════════════════════════════
 // ABA — DASHBOARD
 // ════════════════════════════════════════════════
@@ -164,31 +177,65 @@ function renderDashboard() {
   const pendentes  = vendedores.length - concluidos.length;
   const totalCli   = Object.values(porVendedor).reduce((s,v) => s + v.clientes.size, 0);
   const pct        = vendedores.length ? Math.round(concluidos.length / vendedores.length * 100) : 0;
+  const diasUteis  = _diasUteis(_adminMesSel, _adminAnoSel);
+  const mediaDia   = diasUteis ? totalKg / diasUteis : 0;
+  // Clientes ativos = clientes da d_clientes cujo codVendedor está na lista de vendedores
+  const codsVend   = new Set(vendedores.map(v => String(v.codigo||"").trim()));
+  const totalCliAtivos = (estado._todosClientes || []).filter(c =>
+    codsVend.has(String(c.codVendedor||"").trim())
+  ).length;
+  const pctCli = totalCliAtivos ? Math.round(totalCli / totalCliAtivos * 100) : 0;
 
   // ── CARDS ──
   document.getElementById("admin-dash-cards").innerHTML = `
     <div class="admin-card admin-card-accent">
-      <div class="admin-card-val">${nfT(totalKg)}</div>
-      <div class="admin-card-lbl">Total kg previsto</div>
+      <div class="admin-card-val">${nfTCard(totalKg)}</div>
+      <div class="admin-card-lbl">Total kg previsto · ${diasUteis} dias úteis (Seg–Sáb)</div>
+      <div class="admin-card-kg-split">
+        <div class="admin-card-kg-sep"></div>
+        <div class="admin-card-kg-sub">
+          <div class="admin-card-kg-val">${nfTCard(mediaDia)}</div>
+          <div class="admin-card-kg-lbl">Média por dia útil</div>
+        </div>
+        <div class="admin-card-kg-sep"></div>
+        <div class="admin-card-kg-sub">
+          <div class="admin-card-kg-val">${diasUteis}</div>
+          <div class="admin-card-kg-lbl">Dias úteis</div>
+        </div>
+      </div>
     </div>
     <div class="admin-card">
-      <div class="admin-card-val">${vendedores.length}</div>
-      <div class="admin-card-lbl">Vendedores</div>
-    </div>
-    <div class="admin-card admin-card-ok">
-      <div class="admin-card-val">${concluidos.length}</div>
-      <div class="admin-card-lbl">Concluídos</div>
-      <div class="admin-card-delta ok">${pct}% do total</div>
-    </div>
-    <div class="admin-card admin-card-warn">
-      <div class="admin-card-val warn">${pendentes}</div>
-      <div class="admin-card-lbl">Pendentes</div>
-      <div class="admin-card-delta warn">${100-pct}% ainda abertos</div>
+      <div class="admin-card-lbl" style="margin-bottom:6px">Vendedores</div>
+      <div class="admin-card-vend-row">
+        <span class="admin-card-vend-lbl">Total</span>
+        <strong>${vendedores.length}</strong>
+      </div>
+      <div class="admin-card-vend-row">
+        <span class="admin-card-vend-lbl">Concluídos</span>
+        <span class="admin-badge ok">${concluidos.length} ✅</span>
+      </div>
+      <div class="admin-card-vend-row">
+        <span class="admin-card-vend-lbl">Pendentes</span>
+        <span class="admin-badge warn">${pendentes} ⏳</span>
+      </div>
+      <div class="admin-card-prog-bar"><div class="admin-card-prog-fill" style="width:${pct}%"></div></div>
+      <div class="admin-card-delta ok" style="text-align:right">${pct}% concluído</div>
     </div>
     <div class="admin-card">
-      <div class="admin-card-val">${totalCli}</div>
-      <div class="admin-card-lbl">Clientes atendidos</div>
-      <div class="admin-card-delta">${vendedores.length ? (totalCli/vendedores.length).toFixed(1) : 0} por vendedor</div>
+      <div class="admin-card-lbl" style="margin-bottom:4px">Clientes</div>
+      <div class="admin-card-cli-row">
+        <div>
+          <div class="admin-card-val" style="font-size:18px">${totalCli}</div>
+          <div class="admin-card-lbl">Previstos</div>
+        </div>
+        <div class="admin-card-cli-sep">|</div>
+        <div>
+          <div class="admin-card-val" style="font-size:18px;color:var(--muted2)">${totalCliAtivos}</div>
+          <div class="admin-card-lbl">Ativos</div>
+        </div>
+      </div>
+      <div class="admin-card-prog-bar" style="margin-top:6px"><div class="admin-card-prog-fill" style="width:${pctCli}%"></div></div>
+      <div class="admin-card-delta ok" style="text-align:right">${pctCli}% da carteira prevista</div>
     </div>`;
 
   // ── RANKINGS ──
@@ -204,10 +251,11 @@ function renderDashboard() {
   const topCli  = Object.values(porCliente).sort((a,b) => b.kg - a.kg).slice(0,10);
   const maxCli  = topCli[0]?.kg || 1;
 
-  const topVend = vendedores
+  // Todos os vendedores ordenados por kg desc
+  const todosVend = vendedores
     .map(v => ({ nome: v.nome||"—", kg: porVendedor[String(v.codigo||"").trim()]?.kg||0, cod: String(v.codigo||"").trim() }))
-    .sort((a,b) => b.kg - a.kg).slice(0,10);
-  const maxVend = topVend[0]?.kg || 1;
+    .sort((a,b) => b.kg - a.kg);
+  const maxVend = todosVend[0]?.kg || 1;
 
   const mkRankCli = (c, i) => {
     const ativo = _adminFiltros.cliente === c.cod;
@@ -219,24 +267,26 @@ function renderDashboard() {
     </div>`;
   };
   const mkRankVend = (v, i) => {
-    const ativo = _adminFiltros.vendedor === v.cod;
+    const ativo  = _adminFiltros.vendedor === v.cod;
+    const concl  = v.kg > 0;
+    const num    = concl ? i+1 : "—";
+    const badge  = concl
+      ? `<span class="admin-badge ok" style="font-size:9px;padding:1px 6px">✅</span>`
+      : `<span class="admin-badge warn" style="font-size:9px;padding:1px 6px">⏳</span>`;
     return `<div class="admin-rank-row${ativo?" ativo":""}" onclick="_aplicarFiltro('vendedor','${v.cod}')" title="Filtrar por ${v.nome}">
-      <span class="admin-rank-n">${i+1}</span>
+      <span class="admin-rank-n">${num}</span>
       <span class="admin-rank-name">${v.nome}</span>
       <div class="admin-rank-bar-wrap"><div class="admin-rank-bar" style="width:${Math.round(v.kg/maxVend*100)}%"></div></div>
       <span class="admin-rank-val">${nfT(v.kg)}</span>
+      ${badge}
     </div>`;
   };
 
-  document.getElementById("admin-dash-rankings").innerHTML = `
-    <div class="admin-rank-box">
-      <div class="admin-rank-titulo">🏆 Top 10 clientes por kg</div>
-      ${topCli.map(mkRankCli).join("") || '<p class="admin-vazio">Sem dados</p>'}
-    </div>
-    <div class="admin-rank-box">
-      <div class="admin-rank-titulo">🥇 Top 10 vendedores por kg</div>
-      ${topVend.map(mkRankVend).join("") || '<p class="admin-vazio">Sem dados</p>'}
-    </div>`;
+  // Rankings renderizados nos containers do novo grid
+  const elCli  = document.getElementById("admin-rank-clientes");
+  const elVend = document.getElementById("admin-rank-vendedores");
+  if (elCli)  elCli.innerHTML  = topCli.map(mkRankCli).join("") || '<p class="admin-vazio">Sem dados</p>';
+  if (elVend) elVend.innerHTML = todosVend.map(mkRankVend).join("") || '<p class="admin-vazio">Sem dados</p>';
 
   // ── AGREGA FASE, LINHA, UNIDADE ──
   const porFase  = {};
@@ -249,7 +299,8 @@ function renderDashboard() {
     const kg   = qtd * peso;
     const fase  = String(l.FASE    || "Outros").trim();
     const linha = String(l.SUB_GRUPO || l["dProduto.SUB_GRUPO"] || "Outros").trim();
-    const unid  = String(l.UNIDADE || "—").trim();
+    const unidRaw = String(l.UNIDADE || "—").trim().toUpperCase();
+    const unid = unidRaw === "KG" ? "Granel" : unidRaw === "SC" ? "Sacaria" : unidRaw === "BG" ? "Bag" : unidRaw;
     porFase[fase]   = (porFase[fase]   || 0) + kg;
     porLinha[linha] = (porLinha[linha] || 0) + kg;
     porUnid[unid]   = (porUnid[unid]   || 0) + kg;
@@ -321,10 +372,15 @@ function _renderGrafico(canvasId, filterKey, entries, cores) {
   if (!el) return;
   if (!entries.length) return;
 
+  // Altura dinâmica: 34px por barra, mínimo 160px
+  const wrapper = el.parentElement;
+  if (wrapper) wrapper.style.height = Math.max(160, entries.length * 34) + "px";
+
   const filtroAtivo = _adminFiltros[filterKey];
   const labels = entries.map(e => e[0]);
   const values = entries.map(e => e[1]);
   const total  = values.reduce((s,v) => s+v, 0) || 1;
+  const maxVal = values[0] || 1;
 
   const bgColors = labels.map((l, i) => {
     const base = cores[i % cores.length];
@@ -348,7 +404,7 @@ function _renderGrafico(canvasId, filterKey, entries, cores) {
       indexAxis: "y",
       responsive: true,
       maintainAspectRatio: false,
-      layout: { padding: { right: 72 } },
+      layout: { padding: { right: 85 } },
       onClick: (evt, elements) => {
         if (!elements.length) return;
         const label = labels[elements[0].index];
@@ -368,11 +424,14 @@ function _renderGrafico(canvasId, filterKey, entries, cores) {
           anchor: "end",
           align: "right",
           clip: false,
+          offset: 4,
+          // Oculta rótulo se barra < 2% do maior valor (evita sobreposição)
+          display: (ctx) => ctx.dataset.data[ctx.dataIndex] >= maxVal * 0.02,
           formatter: (v) => nfT(v),
           font: { size: 10, weight: "bold" },
           color: (ctx) => {
             const label = labels[ctx.dataIndex];
-            return filtroAtivo && label !== filtroAtivo ? "#aaa" : "#0F6E56";
+            return filtroAtivo && label !== filtroAtivo ? "#bbb" : "#0F6E56";
           },
         }
       },
@@ -382,7 +441,7 @@ function _renderGrafico(canvasId, filterKey, entries, cores) {
           grid:  { color: "rgba(128,128,128,0.08)" }
         },
         y: {
-          ticks: { font: { size: 11 } },
+          ticks: { font: { size: 10 }, maxRotation: 0 },
           grid:  { display: false }
         }
       }
@@ -395,6 +454,13 @@ function nfT(kg) {
   if (typeof kg !== "number" || isNaN(kg)) return "—";
   if (kg >= 1000) return (kg / 1000).toFixed(1).replace(".", ",") + " t";
   return nf(kg) + " kg";
+}
+
+// Versão para cards — sem casas decimais
+function nfTCard(kg) {
+  if (typeof kg !== "number" || isNaN(kg)) return "—";
+  if (kg >= 1000) return Math.round(kg / 1000).toLocaleString("pt-BR") + " t";
+  return Math.round(kg).toLocaleString("pt-BR") + " kg";
 }
 
 // ════════════════════════════════════════════════
