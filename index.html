@@ -256,7 +256,7 @@
                 <span class="prod-search-icon">🔍</span>
                 <input class="prod-search" id="prod-search"
                   type="text" placeholder="Buscar produto..."
-                  oninput="filtrarProdutos()"
+                  oninput="filtrarProdutosDebounced()"
                   onfocus="abrirDropdown()"
                   onkeydown="navDropdown(event)"
                   autocomplete="off"/>

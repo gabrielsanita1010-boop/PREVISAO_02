@@ -305,17 +305,28 @@ async function entrar() {
     if (r.lancamentos && r.lancamentos.length) {
       console.log("PREVFISH: primeiro lancamento:", JSON.stringify(r.lancamentos[0]));
       console.log("PREVFISH: chaves sessao:", Object.keys(estado.sessao).slice(0,5));
+      // Índice cod → sessKey construído uma única vez (evita escanear todas
+      // as chaves de estado.sessao para cada lançamento — O(n²) com muitos
+      // clientes/lançamentos, causa de lentidão no carregamento do login)
+      const sessKeys   = Object.keys(estado.sessao);
+      const mapaSessao = new Map();
+      sessKeys.forEach(k => {
+        mapaSessao.set(k, k);
+        mapaSessao.set(k.replace(/^0+/,""), k);
+        mapaSessao.set(String(parseInt(k,10)), k);
+      });
+
       r.lancamentos.forEach(l => {
         const codRaw = l.COD_CLIENTE ?? l.cod_cliente ?? "";
         const cod    = String(codRaw).trim();
         // Match robusto: direto, sem zeros à esquerda, ou por parseInt
-        let sessKey = Object.keys(estado.sessao).find(k =>
-          k === cod ||
-          k.replace(/^0+/,"") === cod.replace(/^0+/,"") ||
-          String(parseInt(k,10)) === String(parseInt(cod,10))
-        ) || null;
+        let sessKey =
+          mapaSessao.get(cod) ||
+          mapaSessao.get(cod.replace(/^0+/,"")) ||
+          mapaSessao.get(String(parseInt(cod,10))) ||
+          null;
         if (!sessKey) {
-          console.warn("PREVFISH: COD_CLIENTE nao mapeado:", cod, "| sessao:", Object.keys(estado.sessao).slice(0,5));
+          console.warn("PREVFISH: COD_CLIENTE nao mapeado:", cod, "| sessao:", sessKeys.slice(0,5));
           return;
         }
         estado.sessao[sessKey].status     = "ok";
@@ -406,6 +417,7 @@ function unidadeParaTipo(unidade) {
 
 // Cache dos produtos processados e estado do seletor
 let _prodCache    = [];   // [{cod, nome, fase, subGrupo, pellet, pesoLiq, unidade}]
+let _prodPorCod   = new Map(); // índice cod → produto, evita busca linear repetida
 let _filtros      = { fase: "", linha: "", unidade: "" }; // filtros ativos
 let _dropFocusIdx = -1;   // índice do item focado no dropdown (teclado)
 let _prodSel      = null; // produto atualmente selecionado
@@ -451,6 +463,9 @@ function preencherSelectProdutos() {
 
   console.log(`PREVFISH: ${_prodCache.length} produtos indexados.`);
 
+  // Reconstrói índice cod → produto (usado nos resumos/edição, evita find() repetido)
+  _prodPorCod = new Map(_prodCache.map(p => [p.cod, p]));
+
   // Monta os selects dos 3 filtros
   montarFiltrosSelects();
   // Atualiza dropdown (sem filtro)
@@ -493,6 +508,15 @@ function selecionarFiltro(campo, valor) {
   abrirDropdown();
 }
 
+// ── Debounce genérico ──
+function debounce(fn, wait) {
+  let t;
+  return function(...args) {
+    clearTimeout(t);
+    t = setTimeout(() => fn.apply(this, args), wait);
+  };
+}
+
 // ── Filtra e renderiza o dropdown ──
 function filtrarProdutos() {
   const q   = (document.getElementById("prod-search")?.value || "").toLowerCase().trim();
@@ -512,6 +536,10 @@ function filtrarProdutos() {
 
   renderizarDropdown(lista);
 }
+
+// Versão com debounce — usada no oninput da busca para não re-renderizar a
+// cada tecla (evita engasgo com catálogos grandes, principalmente no celular)
+const filtrarProdutosDebounced = debounce(filtrarProdutos, 150);
 
 function renderizarDropdown(lista) {
   const dd = document.getElementById("prod-dropdown");
@@ -658,7 +686,7 @@ function atualizarResumoProdutos() {
   // Agrupa kg por fase
   const porFase = {};
   todosItens.forEach(item => {
-    const prod = _prodCache.find(p => p.cod === item.codProduto);
+    const prod = _prodPorCod.get(item.codProduto);
     const fase = prod?.fase || item.fase || "Sem fase";
     porFase[fase] = (porFase[fase] || 0) + item.totalKg;
   });
@@ -1037,7 +1065,7 @@ function editarItem(id) {
   estado.editandoId = id;
 
   // Restaura o produto selecionado no seletor avançado
-  const prod = _prodCache.find(p => p.cod === item.codProduto)
+  const prod = _prodPorCod.get(item.codProduto)
     || { cod: item.codProduto, nome: item.nomeProduto, fase: item.fase,
          subGrupo: item.subGrupo, pellet: item.pellet, pesoLiq: item.pesoLiquido };
   selecionarProduto(prod);
@@ -1386,34 +1414,28 @@ function renderizarPainelClientes() {
   const painelPend = document.getElementById("painel-pendentes");
   if (painelPend) painelPend.textContent = pendentes > 0 ? `${pendentes} pendentes` : "✓ todos";
 
-  // Renderiza nas duas listas (painel desktop + drawer mobile)
-  ["painel-lista","drawer-lista"].forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.innerHTML = "";
-    estado.clientes.forEach((c, i) => {
-      const sessStatus = estado.sessao[c.codCliente]?.status || "pendente";
-      // Verifica se há rascunho local para este cliente
-      const temRascunho = sessStatus === "pendente" && carregarRascunho(c.codCliente)?.length > 0;
-      const status = temRascunho ? "rascunho" : sessStatus;
-      const ativo  = i === estado.clienteIdx;
-      const div    = document.createElement("div");
-      div.className= `cliente-item-painel${ativo ? " ativo" : ""}`;
-      div.onclick  = () => { irClienteDireto(i); fecharDrawer(); };
-      const qtdRascunho = temRascunho ? carregarRascunho(c.codCliente).length : 0;
-      const sess = estado.sessao[c.codCliente] || {};
-      const totalKgCli = (() => {
-        if (sessStatus === "sem-venda") return null;
-        const todos = [...(sess.itensServidor || []), ...(sess.itens || [])];
-        const kg = todos.reduce((s,i)=>s+i.totalKg,0);
-        return kg > 0 ? kg : null;
-      })();
-      const kgHtml = sessStatus === "sem-venda"
-        ? `<div class="cli-kg-painel sem-venda">sem venda</div>`
-        : totalKgCli !== null
-          ? `<div class="cli-kg-painel">${nf(totalKgCli)} kg</div>`
-          : `<div class="cli-kg-painel empty">—</div>`;
-      div.innerHTML= `
+  // Pré-computa os dados de cada cliente uma única vez — antes isso rodava
+  // 2x (desktop + mobile) e lia o localStorage até 2x por cliente em cada
+  // passada, gerando até 4x mais leituras de disco do que o necessário
+  const dadosClientes = estado.clientes.map((c, i) => {
+    const sessStatus  = estado.sessao[c.codCliente]?.status || "pendente";
+    const rascunho    = sessStatus === "pendente" ? carregarRascunho(c.codCliente) : null;
+    const temRascunho = !!(rascunho && rascunho.length > 0);
+    const status      = temRascunho ? "rascunho" : sessStatus;
+    const qtdRascunho = temRascunho ? rascunho.length : 0;
+    const sess        = estado.sessao[c.codCliente] || {};
+    const totalKgCli  = (() => {
+      if (sessStatus === "sem-venda") return null;
+      const todos = [...(sess.itensServidor || []), ...(sess.itens || [])];
+      const kg = todos.reduce((s,it)=>s+it.totalKg,0);
+      return kg > 0 ? kg : null;
+    })();
+    const kgHtml = sessStatus === "sem-venda"
+      ? `<div class="cli-kg-painel sem-venda">sem venda</div>`
+      : totalKgCli !== null
+        ? `<div class="cli-kg-painel">${nf(totalKgCli)} kg</div>`
+        : `<div class="cli-kg-painel empty">—</div>`;
+    const innerHtml = `
         <div class="cli-dot ${status}"></div>
         <div class="cli-info">
           <div class="cli-nome ${sessStatus === "pendente" && !temRascunho ? "pendente" : ""}">${c.nomeCliente}</div>
@@ -1421,8 +1443,23 @@ function renderizarPainelClientes() {
         </div>
         ${kgHtml}
       `;
-      el.appendChild(div);
+    return { idx: i, ativo: i === estado.clienteIdx, innerHtml };
+  });
+
+  // Renderiza nas duas listas (painel desktop + drawer mobile)
+  ["painel-lista","drawer-lista"].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = "";
+    const frag = document.createDocumentFragment();
+    dadosClientes.forEach(({ idx, ativo, innerHtml }) => {
+      const div     = document.createElement("div");
+      div.className = `cliente-item-painel${ativo ? " ativo" : ""}`;
+      div.onclick   = () => { irClienteDireto(idx); fecharDrawer(); };
+      div.innerHTML = innerHtml;
+      frag.appendChild(div);
     });
+    el.appendChild(frag);
   });
 }
 
