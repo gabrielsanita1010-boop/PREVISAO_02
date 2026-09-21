@@ -34,6 +34,13 @@ const KG_POR_UNIDADE = { Saco: 25, Granel: 1, Bag: 750 };
 const MESES = ["","Janeiro","Fevereiro","Março","Abril","Maio","Junho",
                "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
+// A previsão é sempre do mês SEGUINTE ao atual (dezembro → janeiro do ano seguinte)
+function periodoPrevisao() {
+  const agora = new Date();
+  const prox  = new Date(agora.getFullYear(), agora.getMonth() + 1, 1);
+  return { mes: String(prox.getMonth() + 1), ano: String(prox.getFullYear()) };
+}
+
 // ════════════════════════════════════════════════
 // INICIALIZAÇÃO — carrega dados ao abrir
 // ════════════════════════════════════════════════
@@ -262,9 +269,7 @@ async function salvarTrocaSenha() {
 // ENTRAR — configura período e abre o app
 // ════════════════════════════════════════════════
 async function entrar() {
-  const agora = new Date();
-  const mes = String(agora.getMonth() + 1);
-  const ano = String(agora.getFullYear());
+  const { mes, ano } = periodoPrevisao();
 
   // Vendedor definido pelo login
   const codV = estado.vendedor ? estado.vendedor.codigo : null;

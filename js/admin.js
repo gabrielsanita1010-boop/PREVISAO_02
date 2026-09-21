@@ -38,9 +38,9 @@ async function entrarAdmin() {
   const nome = estado.vendedor?.nome || estado.vendedor?.nomeReduzido || "Admin";
   document.getElementById("admin-hdr-nome").textContent = nome;
 
-  const agora  = new Date();
-  _adminMesSel = String(agora.getMonth() + 1);
-  _adminAnoSel = String(agora.getFullYear());
+  const prev   = periodoPrevisao();
+  _adminMesSel = prev.mes;
+  _adminAnoSel = prev.ano;
   estado.mes   = _adminMesSel;
   estado.ano   = _adminAnoSel;
 
