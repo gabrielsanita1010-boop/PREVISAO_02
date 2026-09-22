@@ -82,13 +82,18 @@ async function adminSelecionarMes(mes) {
 // ════════════════════════════════════════════════
 // FILTROS CRUZADOS
 // ════════════════════════════════════════════════
+// Cada loja é um cliente distinto: chave = código do cliente + loja
+function _chaveCli(l) {
+  return String(l.COD_CLIENTE || "").trim() + "-" + String(l.LOJA ?? "").trim();
+}
+
 function _adminDadosFiltrados() {
   return _adminLancamentos.filter(l => {
     const fase  = String(l.FASE    || "").trim();
     const linha = String(l.SUB_GRUPO || l["dProduto.SUB_GRUPO"] || "").trim();
     const unid  = String(l.UNIDADE || "").trim();
     const vend  = String(l.COD_VENDEDOR || "").trim();
-    const cli   = String(l.COD_CLIENTE  || "").trim();
+    const cli   = _chaveCli(l);
     if (_adminFiltros.fase     && fase  !== _adminFiltros.fase)     return false;
     if (_adminFiltros.linha    && linha !== _adminFiltros.linha)    return false;
     if (_adminFiltros.unidade  && unid  !== _adminFiltros.unidade)  return false;
@@ -168,7 +173,7 @@ function renderDashboard() {
     const qtd  = parseFloat(l.QUANTIDADE)   || 0;
     const peso = parseFloat(l.PESO_LIQUIDO) || 25;
     porVendedor[codV].kg += qtd * peso;
-    porVendedor[codV].clientes.add(String(l.COD_CLIENTE || "").trim());
+    porVendedor[codV].clientes.add(_chaveCli(l));
   });
 
   // ── Totais ──
@@ -241,8 +246,9 @@ function renderDashboard() {
   // ── RANKINGS ──
   const porCliente = {};
   dados.forEach(l => {
-    const k    = String(l.COD_CLIENTE || "").trim();
-    const nome = String(l.CLIENTE     || "—");
+    const k    = _chaveCli(l);
+    const lojaN = String(l.LOJA ?? "").trim();
+    const nome = String(l.CLIENTE     || "—") + (lojaN ? " — Loja " + lojaN : "");
     if (!porCliente[k]) porCliente[k] = { nome, kg: 0, cod: k };
     const qtd  = parseFloat(l.QUANTIDADE)   || 0;
     const peso = parseFloat(l.PESO_LIQUIDO) || 25;
@@ -508,7 +514,8 @@ function filtrarClientesAdmin() {
     const cod  = String(c.codCliente  || "").toLowerCase();
     const vend = (estado._todosVendedores||[]).find(v => String(v.codigo||"").trim() === String(c.codVendedor||"").trim());
     const nomeV= String(vend?.nome || "").toLowerCase();
-    return !busca || nome.includes(busca) || cod.includes(busca) || nomeV.includes(busca);
+    const lojaB = String(c.loja ?? "").toLowerCase();
+    return !busca || nome.includes(busca) || cod.includes(busca) || nomeV.includes(busca) || ("loja " + lojaB).includes(busca);
   });
   const linhas = clientes.map(c => {
     const nomeC = String(c.nomeCliente || "—");
@@ -519,6 +526,7 @@ function filtrarClientesAdmin() {
     return `<tr>
       <td style="font-family:var(--mono);font-size:11px;color:var(--muted2)">#${codC}</td>
       <td><strong>${nomeC}</strong></td>
+      <td>${c.loja ?? "—"}</td>
       <td>${nomeV}</td>
     </tr>`;
   }).join("");
@@ -528,8 +536,8 @@ function filtrarClientesAdmin() {
     <div style="margin-bottom:10px;font-family:var(--mono);font-size:11px;color:var(--muted2)">${clientes.length} cliente(s)</div>
     <div class="admin-table-wrap">
       <table class="admin-table">
-        <thead><tr><th>Código</th><th>Cliente</th><th>Vendedor</th></tr></thead>
-        <tbody>${linhas || '<tr><td colspan="3" style="text-align:center;color:var(--muted2);padding:24px">Nenhum cliente.</td></tr>'}</tbody>
+        <thead><tr><th>Código</th><th>Cliente</th><th>Loja</th><th>Vendedor</th></tr></thead>
+        <tbody>${linhas || '<tr><td colspan="4" style="text-align:center;color:var(--muted2);padding:24px">Nenhum cliente.</td></tr>'}</tbody>
       </table>
     </div>`;
 }

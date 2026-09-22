@@ -23,7 +23,7 @@ let estado = {
   clienteIdx:  0,      // índice do cliente atual
   itensCliente:[],     // itens do cliente em memória
   editandoId:  null,   // id do item sendo editado
-  sessao:      {},     // { [codCliente]: { status:'ok'|'sem-venda', itens:[], totalKg:0 } }
+  sessao:      {},     // { [chave = codCliente-loja]: { status:'ok'|'sem-venda', itens:[], totalKg:0 } }
   produtos:    [],     // todos os produtos
 };
 
@@ -33,6 +33,11 @@ const KG_POR_UNIDADE = { Saco: 25, Granel: 1, Bag: 750 };
 // Nomes dos meses
 const MESES = ["","Janeiro","Fevereiro","Março","Abril","Maio","Junho",
                "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+
+// Cada LOJA é um cliente distinto: a chave de sessão/rascunho é código + loja
+function chaveCliente(c) {
+  return String(c.codCliente).trim() + "-" + String(c.loja ?? "").trim();
+}
 
 // A previsão é sempre do mês SEGUINTE ao atual (dezembro → janeiro do ano seguinte)
 function periodoPrevisao() {
@@ -289,7 +294,8 @@ async function entrar() {
   // Inicia sessão vazia para cada cliente
   estado.sessao = {};
   estado.clientes.forEach(c => {
-    estado.sessao[c.codCliente] = { status: "pendente", itens: [], totalKg: 0 };
+    c.chave = chaveCliente(c);
+    estado.sessao[c.chave] = { status: "pendente", itens: [], totalKg: 0 };
   });
 
   // Popula produtos no formulário
@@ -313,23 +319,38 @@ async function entrar() {
       // Índice cod → sessKey construído uma única vez (evita escanear todas
       // as chaves de estado.sessao para cada lançamento — O(n²) com muitos
       // clientes/lançamentos, causa de lentidão no carregamento do login)
+      // Chave = código + loja. Cada loja é um cliente distinto.
       const sessKeys   = Object.keys(estado.sessao);
-      const mapaSessao = new Map();
-      sessKeys.forEach(k => {
-        mapaSessao.set(k, k);
-        mapaSessao.set(k.replace(/^0+/,""), k);
-        mapaSessao.set(String(parseInt(k,10)), k);
+      const mapaSessao = new Map();   // "cod-loja" → chave
+      const porCod     = new Map();   // cod → [chaves]  (só p/ linhas antigas sem LOJA)
+      estado.clientes.forEach(c => {
+        const cod = String(c.codCliente).trim();
+        const lj  = String(c.loja ?? "").trim();
+        [cod, cod.replace(/^0+/,""), String(parseInt(cod,10))].forEach(v => {
+          mapaSessao.set(v + "-" + lj, c.chave);
+          if (!porCod.has(v)) porCod.set(v, []);
+          porCod.get(v).push(c.chave);
+        });
       });
 
       r.lancamentos.forEach(l => {
         const codRaw = l.COD_CLIENTE ?? l.cod_cliente ?? "";
         const cod    = String(codRaw).trim();
         // Match robusto: direto, sem zeros à esquerda, ou por parseInt
-        let sessKey =
-          mapaSessao.get(cod) ||
-          mapaSessao.get(cod.replace(/^0+/,"")) ||
-          mapaSessao.get(String(parseInt(cod,10))) ||
-          null;
+        const lojaL     = String(l.LOJA ?? "").trim();
+        const variantes = [cod, cod.replace(/^0+/,""), String(parseInt(cod,10))];
+        let sessKey = null;
+        for (const vv of variantes) {
+          sessKey = mapaSessao.get(vv + "-" + lojaL);
+          if (sessKey) break;
+        }
+        // Linha antiga sem LOJA: só associa se o cliente tiver uma única loja
+        if (!sessKey && !lojaL) {
+          for (const vv of variantes) {
+            const arr = porCod.get(vv);
+            if (arr && new Set(arr).size === 1) { sessKey = arr[0]; break; }
+          }
+        }
         if (!sessKey) {
           console.warn("PREVFISH: COD_CLIENTE nao mapeado:", cod, "| sessao:", sessKeys.slice(0,5));
           return;
@@ -382,7 +403,13 @@ async function entrar() {
   // Restaura confirmações locais ainda não enviadas à nuvem
   const sessaoLocal = carregarSessaoLocal();
   if (sessaoLocal) {
-    Object.entries(sessaoLocal).forEach(([cod, sess]) => {
+    Object.entries(sessaoLocal).forEach(([codSalvo, sess]) => {
+      // Compatibilidade: sessões salvas antes da chave código+loja usavam só o código
+      let cod = codSalvo;
+      if (!estado.sessao[cod]) {
+        const doCod = estado.clientes.filter(c => String(c.codCliente).trim() === String(codSalvo).trim());
+        if (doCod.length === 1) cod = doCod[0].chave;
+      }
       // Só restaura itens NOVOS (não enviados) se o servidor não já trouxe esse cliente como enviado
       if (estado.sessao[cod] && !estado.sessao[cod]._jaEnviado) {
         estado.sessao[cod] = { ...sess, _jaEnviado: false };
@@ -681,7 +708,7 @@ function atualizarResumoProdutos() {
   if (!wrap) return;
 
   const c = estado.clientes[estado.clienteIdx];
-  const sess = c ? (estado.sessao[c.codCliente] || {}) : {};
+  const sess = c ? (estado.sessao[c.chave] || {}) : {};
   const todosItens = [...(sess.itensServidor || []), ...estado.itensCliente];
 
   if (todosItens.length === 0) {
@@ -726,7 +753,7 @@ function preencherSelectClientes() {
   estado.clientes.forEach((c, i) => {
     const op       = document.createElement("option");
     op.value       = i;
-    op.textContent = `${String(i+1).padStart(2,"0")}. ${c.nomeCliente}`;
+    op.textContent = `${String(i+1).padStart(2,"0")}. ${c.nomeCliente} — Loja ${c.loja || "—"}`;
     sel.appendChild(op);
   });
 }
@@ -811,7 +838,14 @@ function salvarRascunho(codCliente, itens) {
 
 function carregarRascunho(codCliente) {
   try {
-    const raw = localStorage.getItem(_rascunhoKey(codCliente));
+    let raw = localStorage.getItem(_rascunhoKey(codCliente));
+    if (raw === null) {
+      // Rascunho antigo (chave só com o código): só vale se o cliente tem uma única loja
+      const cod = String(codCliente).slice(0, String(codCliente).lastIndexOf("-"));
+      if ((estado.clientes || []).filter(c => String(c.codCliente).trim() === cod).length === 1) {
+        raw = localStorage.getItem(_rascunhoKey(cod));
+      }
+    }
     return raw ? JSON.parse(raw) : null;
   } catch(e) { return null; }
 }
@@ -828,12 +862,12 @@ function atualizarClienteAtual() {
   const c   = estado.clientes[idx];
   if (!c) return;
 
-  const sess = estado.sessao[c.codCliente] || { status:"pendente", itens:[], totalKg:0 };
+  const sess = estado.sessao[c.chave] || { status:"pendente", itens:[], totalKg:0 };
 
   // itensCliente = apenas os itens NOVOS desta sessão (para edição)
   // itensServidor = histórico imutável já salvo no servidor
   if (sess.status === "pendente") {
-    const rascunho = carregarRascunho(c.codCliente);
+    const rascunho = carregarRascunho(c.chave);
     estado.itensCliente = rascunho ? [...rascunho] : [];
   } else {
     // itens = novos ainda não enviados; itensServidor = histórico do servidor
@@ -939,7 +973,7 @@ function adicionarItem() {
 
   // Salva rascunho local imediatamente
   const cAtual = estado.clientes[estado.clienteIdx];
-  if (cAtual) salvarRascunho(cAtual.codCliente, estado.itensCliente);
+  if (cAtual) salvarRascunho(cAtual.chave, estado.itensCliente);
 
   limparFormulario();
   renderizarLista();
@@ -957,7 +991,7 @@ function renderizarLista() {
   listEl.innerHTML = "";
 
   const c = estado.clientes[estado.clienteIdx];
-  const sess = c ? (estado.sessao[c.codCliente] || {}) : {};
+  const sess = c ? (estado.sessao[c.chave] || {}) : {};
   const itensServidor = sess.itensServidor || [];
   const itensNovos    = estado.itensCliente; // apenas novos desta sessão
 
@@ -1107,7 +1141,7 @@ function excluirItem(id) {
   estado.itensCliente = estado.itensCliente.filter(i => i.id !== id);
   if (estado.editandoId === id) cancelarEdicao();
   const cAtual = estado.clientes[estado.clienteIdx];
-  if (cAtual) salvarRascunho(cAtual.codCliente, estado.itensCliente);
+  if (cAtual) salvarRascunho(cAtual.chave, estado.itensCliente);
   renderizarLista();
   toast("Item removido.");
 }
@@ -1130,9 +1164,9 @@ function registrarSemVenda() {
 
   abrirModal(
     "Registrar sem venda?",
-    `Confirmar que <strong>${c.nomeCliente}</strong> não realizou compras neste mês?<br><small style="color:var(--muted2)">O registro ficará salvo localmente até você clicar em "Salvar tudo na nuvem".</small>`,
+    `Confirmar que <strong>${c.nomeCliente} — Loja ${c.loja || "—"}</strong> não realizou compras neste mês?<br><small style="color:var(--muted2)">O registro ficará salvo localmente até você clicar em "Salvar tudo na nuvem".</small>`,
     () => {
-      const cod = c.codCliente;
+      const cod = c.chave;
       estado.sessao[cod] = { status: "sem-venda", itens: [], totalKg: 0 };
       limparRascunho(cod);
       estado.itensCliente = [];
@@ -1168,10 +1202,10 @@ function confirmarFinalizar() {
   const totalKg = estado.itensCliente.reduce((s,i)=>s+i.totalKg, 0);
   abrirModal(
     "Confirmar cliente?",
-    `Confirmar ${estado.itensCliente.length} item(s) para <strong>${c.nomeCliente}</strong>, totalizando ${nf(totalKg)} kg?<br><small style="color:var(--muted2)">Os dados ficam salvos localmente até você clicar em "Salvar tudo na nuvem".</small>`,
+    `Confirmar ${estado.itensCliente.length} item(s) para <strong>${c.nomeCliente} — Loja ${c.loja || "—"}</strong>, totalizando ${nf(totalKg)} kg?<br><small style="color:var(--muted2)">Os dados ficam salvos localmente até você clicar em "Salvar tudo na nuvem".</small>`,
     () => {
       // Salva apenas em memória (estado)
-      const cod = c.codCliente;
+      const cod = c.chave;
       const sessAnterior = estado.sessao[cod] || {};
       // itens = apenas os NOVOS desta sessão (não duplica os do servidor)
       const novosItens = [...estado.itensCliente];
@@ -1408,7 +1442,7 @@ function atualizarResumo() {
 // ════════════════════════════════════════════════
 function renderizarPainelClientes() {
   const pendentes = estado.clientes.filter(c =>
-    (estado.sessao[c.codCliente]?.status || "pendente") === "pendente"
+    (estado.sessao[c.chave]?.status || "pendente") === "pendente"
   ).length;
 
   // Atualiza badge do botão mobile
@@ -1423,12 +1457,12 @@ function renderizarPainelClientes() {
   // 2x (desktop + mobile) e lia o localStorage até 2x por cliente em cada
   // passada, gerando até 4x mais leituras de disco do que o necessário
   const dadosClientes = estado.clientes.map((c, i) => {
-    const sessStatus  = estado.sessao[c.codCliente]?.status || "pendente";
-    const rascunho    = sessStatus === "pendente" ? carregarRascunho(c.codCliente) : null;
+    const sessStatus  = estado.sessao[c.chave]?.status || "pendente";
+    const rascunho    = sessStatus === "pendente" ? carregarRascunho(c.chave) : null;
     const temRascunho = !!(rascunho && rascunho.length > 0);
     const status      = temRascunho ? "rascunho" : sessStatus;
     const qtdRascunho = temRascunho ? rascunho.length : 0;
-    const sess        = estado.sessao[c.codCliente] || {};
+    const sess        = estado.sessao[c.chave] || {};
     const totalKgCli  = (() => {
       if (sessStatus === "sem-venda") return null;
       const todos = [...(sess.itensServidor || []), ...(sess.itens || [])];
@@ -1444,7 +1478,7 @@ function renderizarPainelClientes() {
         <div class="cli-dot ${status}"></div>
         <div class="cli-info">
           <div class="cli-nome ${sessStatus === "pendente" && !temRascunho ? "pendente" : ""}">${c.nomeCliente}</div>
-          <div class="cli-num">#${c.codCliente}${temRascunho ? ` · ✏️ ${qtdRascunho} item(s)` : ""}</div>
+          <div class="cli-num">#${c.codCliente} · Loja ${c.loja || "—"}${temRascunho ? ` · ✏️ ${qtdRascunho} item(s)` : ""}</div>
         </div>
         ${kgHtml}
       `;
@@ -1584,7 +1618,7 @@ function atualizarSalvarFinal() {
 
 async function salvarTudoFinal() {
   const confirmados = estado.clientes.filter(c => {
-    const s = estado.sessao[c.codCliente];
+    const s = estado.sessao[c.chave];
     // Só envia clientes que têm status confirmado E ainda não foram enviados ao servidor
     return s && s.status !== "pendente" && !s._jaEnviado;
   });
@@ -1594,7 +1628,7 @@ async function salvarTudoFinal() {
   }
 
   const pendentes = estado.clientes.filter(c => {
-    const s = estado.sessao[c.codCliente];
+    const s = estado.sessao[c.chave];
     return !s || s.status === "pendente";
   });
 
@@ -1623,7 +1657,7 @@ async function salvarTudoFinal() {
       // Monta todas as linhas de uma vez — somente itens NOVOS (sess.itens)
       const todasLinhas = [];
       confirmados.forEach(c => {
-        const sess = estado.sessao[c.codCliente];
+        const sess = estado.sessao[c.chave];
         if (sess.status === "sem-venda") return;
         // sess.itens = apenas os novos não enviados ainda
         (sess.itens || []).forEach(i => {
@@ -1652,7 +1686,7 @@ async function salvarTudoFinal() {
 
       // Clientes sem venda (lista separada para o backend)
       const semVendaList = confirmados
-        .filter(c => estado.sessao[c.codCliente]?.status === "sem-venda")
+        .filter(c => estado.sessao[c.chave]?.status === "sem-venda")
         .map(c => ({
           COD_VENDEDOR: sanitize(v.codigo),
           COD_CLIENTE:  sanitize(c.codCliente),
@@ -1683,12 +1717,12 @@ async function salvarTudoFinal() {
         });
 
         // Limpa rascunhos locais dos confirmados
-        confirmados.forEach(c => limparRascunho(c.codCliente));
+        confirmados.forEach(c => limparRascunho(c.chave));
         limparSessaoLocal();
 
         // Pós-envio: move os itens novos para itensServidor (histórico) e zera itens
         confirmados.forEach(c => {
-          const sess = estado.sessao[c.codCliente];
+          const sess = estado.sessao[c.chave];
           if (sess) {
             // Acumula no histórico do servidor
             const novosEnviados = (sess.itens || []).map(i => ({ ...i, _doServidor: true }));
@@ -1807,11 +1841,11 @@ function abrirResumo() {
 
   // Por cliente — ordenado por kg desc
   const porCliente = estado.clientes.map(c => {
-    const sess = estado.sessao[c.codCliente] || {};
+    const sess = estado.sessao[c.chave] || {};
     const status = sess.status || "pendente";
     const todos  = [...(sess.itensServidor||[]),...(sess.itens||[])];
     const kg     = todos.reduce((s,i)=>s+i.totalKg,0);
-    return { nome: c.nomeCliente, cod: c.codCliente, status, kg };
+    return { nome: c.nomeCliente + (c.loja ? " — Loja " + c.loja : ""), cod: c.codCliente, status, kg };
   }).sort((a,b) => b.kg - a.kg);
 
   // ── Monta HTML ──
@@ -1945,16 +1979,16 @@ function exportarPDF() {
   const linhasPDF = [];
 
   estado.clientes.forEach(c => {
-    const sess = sessoes[c.codCliente];
+    const sess = sessoes[c.chave];
     if (!sess || sess.status === "pendente") return;
     if (sess.status === "sem-venda") {
-      linhasPDF.push({ cliente: c.nomeCliente, cod: c.codCliente, produto: "— Sem venda —", qtd: "—", unid: "—", kg: 0 });
+      linhasPDF.push({ cliente: c.nomeCliente + (c.loja ? " — Loja " + c.loja : ""), cod: c.codCliente, produto: "— Sem venda —", qtd: "—", unid: "—", kg: 0 });
       return;
     }
     const todosItens = [...(sess.itensServidor || []), ...(sess.itens || [])];
     todosItens.forEach(item => {
       linhasPDF.push({
-        cliente: c.nomeCliente,
+        cliente: c.nomeCliente + (c.loja ? " — Loja " + c.loja : ""),
         cod:     c.codCliente,
         produto: item.nomeProduto,
         qtd:     nf(item.quantidade),
