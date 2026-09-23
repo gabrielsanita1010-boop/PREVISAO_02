@@ -92,8 +92,9 @@
 </div>
 
 <div id="loading">
-  <div class="spinner"></div>
+  <div class="spinner" id="loading-spinner"></div>
   <p id="loadingMsg">Conectando ao banco de dados...</p>
+  <button class="btn-login" id="btn-retry-conexao" style="display:none;width:auto;padding:10px 24px" onclick="tentarNovamenteConexao()">🔄 Tentar novamente</button>
 </div>
 
 <!-- ════════════════ TOAST ════════════════ -->

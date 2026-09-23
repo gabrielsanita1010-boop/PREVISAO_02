@@ -49,45 +49,88 @@ function periodoPrevisao() {
 // ════════════════════════════════════════════════
 // INICIALIZAÇÃO — carrega dados ao abrir
 // ════════════════════════════════════════════════
-window.onload = async () => {
+const GETDATA_CACHE_TTL = 5 * 60 * 1000; // 5 min
+
+// Mostra o retry no meio da conexão, se o app ainda estiver na tela de loading
+window.addEventListener("pf:jsonp-retry", (ev) => {
+  if (document.getElementById("loading").style.display === "flex") {
+    mostrarLoading(`Conectando... (tentativa ${ev.detail.tentativa}/${ev.detail.tentativas})`);
+  }
+});
+
+function aplicarDadosIniciais(data) {
+  estado.produtos         = data.produtos   || [];
+  estado._todosClientes   = data.clientes   || [];
+  estado._todosVendedores = data.vendedores || [];
+}
+
+async function continuarAposDados() {
+  // Tenta restaurar sessão salva
+  const sessaoSalva = localStorage.getItem("pf_sessao");
+  if (sessaoSalva) {
+    try {
+      const v = JSON.parse(sessaoSalva);
+      // Valida que o vendedor ainda existe na lista
+      const existe = estado._todosVendedores.find(vv =>
+        String(vv.email || vv.EMAIL || "").toLowerCase() === String(v.email || "").toLowerCase()
+      );
+      if (existe) {
+        estado.vendedor = v;
+        if (v.perfil === "ADMIN") {
+          await entrarAdmin();
+        } else {
+          await entrar();
+        }
+        return;
+      }
+    } catch(e2) {}
+    localStorage.removeItem("pf_sessao");
+  }
+
+  // Mostra tela de login
+  document.getElementById("tela-login").classList.add("visivel");
+  setTimeout(() => document.getElementById("login-email").focus(), 100);
+}
+
+async function carregarDadosIniciais() {
   mostrarLoading("Conectando...");
   try {
     const data = await jsonp(`${API_URL}?action=getData`);
-    estado.produtos         = data.produtos   || [];
-    estado._todosClientes   = data.clientes   || [];
-    estado._todosVendedores = data.vendedores || [];
+    cacheSet("getData", data);
+    aplicarDadosIniciais(data);
     esconderLoading();
-
-    // Tenta restaurar sessão salva
-    const sessaoSalva = localStorage.getItem("pf_sessao");
-    if (sessaoSalva) {
-      try {
-        const v = JSON.parse(sessaoSalva);
-        // Valida que o vendedor ainda existe na lista
-        const existe = estado._todosVendedores.find(vv =>
-          String(vv.email || vv.EMAIL || "").toLowerCase() === String(v.email || "").toLowerCase()
-        );
-        if (existe) {
-          estado.vendedor = v;
-          if (v.perfil === "ADMIN") {
-            await entrarAdmin();
-          } else {
-            await entrar();
-          }
-          return;
-        }
-      } catch(e2) {}
-      localStorage.removeItem("pf_sessao");
-    }
-
-    // Mostra tela de login
-    document.getElementById("tela-login").classList.add("visivel");
-    setTimeout(() => document.getElementById("login-email").focus(), 100);
-
+    await continuarAposDados();
   } catch(e) {
-    esconderLoading();
-    toast("❌ Erro ao conectar: " + e.message, "error");
+    mostrarErroConexao(e.message);
   }
+}
+
+function mostrarErroConexao(msg) {
+  document.getElementById("loading-spinner").style.display = "none";
+  document.getElementById("loadingMsg").textContent = "❌ Erro ao conectar: " + msg;
+  document.getElementById("btn-retry-conexao").style.display = "inline-block";
+  document.getElementById("loading").style.display = "flex";
+}
+
+function tentarNovamenteConexao() {
+  carregarDadosIniciais();
+}
+
+window.onload = async () => {
+  // Se já temos dados recentes em cache, abre o app na hora e
+  // atualiza em segundo plano — sem deixar o usuário esperando a rede.
+  const cache = cacheGet("getData", GETDATA_CACHE_TTL);
+  if (cache) {
+    aplicarDadosIniciais(cache);
+    esconderLoading();
+    continuarAposDados();
+    jsonp(`${API_URL}?action=getData`)
+      .then(data => { cacheSet("getData", data); aplicarDadosIniciais(data); })
+      .catch(() => {}); // atualização silenciosa: se falhar, segue com o cache
+    return;
+  }
+
+  await carregarDadosIniciais();
 };
 
 // ════════════════════════════════════════════════
@@ -1796,6 +1839,10 @@ function toast(msg, tipo) {
 
 function mostrarLoading(msg) {
   document.getElementById("loadingMsg").textContent = msg || "Aguarde...";
+  const spinner = document.getElementById("loading-spinner");
+  const btnRetry = document.getElementById("btn-retry-conexao");
+  if (spinner)  spinner.style.display  = "block";
+  if (btnRetry) btnRetry.style.display = "none";
   document.getElementById("loading").style.display  = "flex";
 }
 function esconderLoading() {
