@@ -408,6 +408,9 @@ async function entrar() {
           id:          gerarId(),
           codProduto:  String(l.COD_PRODUTO ?? ""),
           nomeProduto: l.PRODUTO || "",
+          // A fase vem da linha da planilha; se faltar, do cadastro do produto.
+          // Sem isso, os totais por fase somavam o histórico em "—".
+          fase:        String(l.FASE || _prodPorCod.get(String(l.COD_PRODUTO ?? "").trim())?.fase || "").trim(),
           tipo,
           unidade:     l.UNIDADE || "",
           quantidade:  qtd,
@@ -1413,10 +1416,22 @@ async function salvarNoServidor(codCliente, nomeCliente, loja, itens, semVenda) 
 function atualizarProgresso() {
   const total     = estado.clientes.length;
   const atendidos = Object.values(estado.sessao).filter(s => s.status !== "pendente").length;
+  const pendentes = total - atendidos;
   const pct       = total > 0 ? Math.round(atendidos / total * 100) : 0;
 
   document.getElementById("prog-fill").style.width = pct + "%";
-  document.getElementById("prog-txt").textContent  = `${atendidos} / ${total}`;
+  document.getElementById("prog-txt").textContent  = atendidos;
+  document.getElementById("prog-de").textContent   = `de ${total}`;
+  document.getElementById("prog-sub").innerHTML    = `${pct}% concluído` +
+    (pendentes > 0 ? ` · <span class="adm-warn">${pendentes} pendente${pendentes > 1 ? "s" : ""}</span>` : "");
+}
+
+// Rótulos das unidades nos cards (cobre o formato da planilha e o formato local)
+const UNID_ROTULO_CARD = { SC:"Sacos", KG:"Granel (kg)", BG:"Bags", Saco:"Sacos", Granel:"Granel (kg)", Bag:"Bags" };
+
+// Escapa texto vindo da planilha antes de inserir via innerHTML
+function escHtml(t) {
+  return String(t ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 }
 
 function atualizarResumo() {
@@ -1424,13 +1439,15 @@ function atualizarResumo() {
   const ok       = sessoes.filter(s => s.status === "ok").length;
   const semVenda = sessoes.filter(s => s.status === "sem-venda").length;
 
-  // Agrega kg de todas as sessões finalizadas (servidor + novos)
-  const porFase = {};
+  // Agrega kg por fase e quantidade por unidade numa única passada (servidor + novos)
+  const porFase    = {};
+  const porUnidade = {};
   sessoes.forEach(sess => {
-    const todos = [...(sess.itensServidor || []), ...(sess.itens || [])];
-    todos.forEach(item => {
-      const fase = item.fase || "—";
-      porFase[fase] = (porFase[fase] || 0) + (item.totalKg || 0);
+    [...(sess.itensServidor || []), ...(sess.itens || [])].forEach(item => {
+      const fase = item.fase || "Sem fase";
+      const unid = item.unidade || item.tipo || "—";
+      porFase[fase]    = (porFase[fase]    || 0) + (item.totalKg    || 0);
+      porUnidade[unid] = (porUnidade[unid] || 0) + (item.quantidade || 0);
     });
   });
   const totalKg = Object.values(porFase).reduce((s,v)=>s+v, 0);
@@ -1439,41 +1456,30 @@ function atualizarResumo() {
   document.getElementById("res-sem-venda").textContent = semVenda;
   document.getElementById("res-total-kg").textContent  = nf(totalKg) + " kg";
 
-  // Agrega também por unidade (servidor + novos)
-  const porUnidade = {};
-  sessoes.forEach(sess => {
-    const todos = [...(sess.itensServidor || []), ...(sess.itens || [])];
-    todos.forEach(item => {
-      const unid = item.unidade || item.tipo || "—";
-      porUnidade[unid] = (porUnidade[unid] || 0) + (item.quantidade || 0);
-    });
-  });
-
-  // Totais por fase no header
-  const cont = document.getElementById("hdr-fase-stats");
-  if (cont) {
-    cont.innerHTML = "";
-    cont.style.display = "contents";
-    Object.entries(porFase).sort().forEach(([fase, kg]) => {
-      const d = document.createElement("div");
-      d.className = "hstat";
-      d.innerHTML = `<div class="hstat-val">${nf(kg)}</div><div class="hstat-lbl">${fase} kg</div>`;
-      cont.appendChild(d);
-    });
+  // Card "Mix por fase" — mesmo formato do card do Admin
+  const cardFase = document.getElementById("hdr-fase-stats");
+  if (cardFase) {
+    const fases  = Object.entries(porFase).sort((a,b) => b[1] - a[1]);
+    const pctDe  = v => totalKg ? Math.round(v / totalKg * 100) : 0;
+    const [principal] = fases;
+    const resto  = fases.slice(1, 3).map(([f,v]) => `${escHtml(f)} ${pctDe(v)}%`).join(" · ");
+    cardFase.innerHTML = `
+      <div class="adm-kpi-lbl">Mix por fase</div>
+      <div class="adm-kpi-val">${principal ? pctDe(principal[1]) + "%" : "—"}</div>
+      <div class="adm-kpi-sub">${principal ? escHtml(principal[0]) : "Nenhum item lançado"}</div>
+      ${resto ? `<div class="admin-card-delta">${resto}</div>` : ""}`;
   }
 
-  // Totais por unidade no header
-  const contU = document.getElementById("hdr-unid-stats");
-  if (contU) {
-    contU.innerHTML = "";
-    contU.style.display = "contents";
-    const UNID_LABEL = { SC:"Sacos", KG:"Granel (kg)", BG:"Bags", Saco:"Sacos", Granel:"Granel (kg)", Bag:"Bags" };
-    Object.entries(porUnidade).sort().forEach(([unid, qtd]) => {
-      const d = document.createElement("div");
-      d.className = "hstat";
-      d.innerHTML = `<div class="hstat-val" style="color:var(--accent2)">${nf(qtd)}</div><div class="hstat-lbl">${UNID_LABEL[unid] || unid}</div>`;
-      contU.appendChild(d);
-    });
+  // Card "Por unidade" — uma linha por unidade
+  const cardUnid = document.getElementById("hdr-unid-stats");
+  if (cardUnid) {
+    const unids = Object.entries(porUnidade).filter(([,q]) => q > 0).sort((a,b) => b[1] - a[1]);
+    cardUnid.innerHTML = `
+      <div class="adm-kpi-lbl">Por unidade</div>
+      ${unids.length
+        ? `<div class="adm-kpi-linhas">${unids.map(([u,q]) =>
+            `<div><span>${escHtml(UNID_ROTULO_CARD[u] || u)}</span><b>${nf(q)}</b></div>`).join("")}</div>`
+        : `<div class="adm-kpi-val">—</div><div class="adm-kpi-sub">Nenhum item lançado</div>`}`;
   }
 
   atualizarProgresso();
@@ -1562,6 +1568,8 @@ function atualizarHeader() {
   const v = estado.vendedor;
   const el = document.getElementById("hdr-vendedor");
   if (el) el.textContent = v ? (v.nomeReduzido || v.nome) : "—";
+  const per = document.getElementById("hdr-periodo");
+  if (per && estado.mes) per.textContent = `${MESES[+estado.mes]}/${estado.ano}`;
 }
 
 // ════════════════════════════════════════════════

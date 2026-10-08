@@ -129,76 +129,68 @@
 <!-- ════════════════ APP PRINCIPAL ════════════════ -->
 <div id="app">
 
-  <!-- HEADER UNIFICADO -->
-  <div class="app-header">
-    <!-- Linha superior: logo + info + sair -->
-    <div class="header-top">
-      <div class="header-logo">Previsão de Vendas</div>
-      <div class="header-info">
+  <!-- CABEÇALHO — mesma barra do painel Admin (.adm-topbar) -->
+  <header class="app-header adm-header">
+    <div class="adm-topbar">
+      <div class="header-logo">PrevFish · Vendas</div>
+      <div class="vend-periodo">Previsão de <strong id="hdr-periodo">—</strong></div>
+      <div class="adm-user">
+        <button class="adm-acao" onclick="abrirResumo()" title="Ver resumo" id="btn-resumo"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Resumo</span></button>
+        <button class="adm-acao adm-acao-primaria" onclick="exportarPDF()" title="Gerar relatório PDF" id="btn-pdf"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg><span>Relatório</span></button>
         <span class="header-vendedor" id="hdr-vendedor">—</span>
+        <button class="btn-icon" onclick="sair()" title="Sair" aria-label="Sair"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg></button>
+      </div>
+    </div>
+  </header>
 
+  <!-- KPIs — mesmo padrão de cards do Admin (.adm-kpi) -->
+  <section class="vend-kpis" aria-labelledby="vend-kpis-titulo">
+    <h2 class="adm-titulo" id="vend-kpis-titulo">Seu progresso</h2>
+    <div class="admin-cards">
+      <div class="admin-card adm-kpi">
+        <div class="adm-kpi-lbl">Clientes atendidos</div>
+        <div class="adm-kpi-val"><span id="prog-txt">0</span> <span class="adm-kpi-de" id="prog-de">de 0</span></div>
+        <div class="admin-card-prog-bar"><div class="admin-card-prog-fill" id="prog-fill" style="width:0%"></div></div>
+        <div class="adm-kpi-sub" id="prog-sub">0% concluído</div>
       </div>
-      <button class="btn-icon" onclick="abrirResumo()" title="Ver Resumo" id="btn-resumo">
-        <span>📊</span>
-        <span class="btn-resumo-txt">Resumo</span>
-      </button>
-      <button class="btn-icon btn-relatorio" onclick="exportarPDF()" title="Gerar Relatório PDF" id="btn-pdf">
-        <span class="btn-relatorio-icon">📄</span>
-        <span class="btn-relatorio-txt">Relatório</span>
-      </button>
-      <button class="btn-icon" onclick="sair()" title="Sair">⏏</button>
+      <div class="admin-card adm-kpi">
+        <div class="adm-kpi-lbl">Total previsto</div>
+        <div class="adm-kpi-val" id="res-total-kg">0 kg</div>
+        <div class="adm-kpi-sub"><span id="res-atendidos">0</span> com previsão · <span id="res-sem-venda">0</span> sem venda</div>
+      </div>
+      <div class="admin-card adm-kpi" id="hdr-fase-stats">
+        <div class="adm-kpi-lbl">Mix por fase</div>
+        <div class="adm-kpi-val">—</div>
+        <div class="adm-kpi-sub">Nenhum item lançado</div>
+      </div>
+      <div class="admin-card adm-kpi" id="hdr-unid-stats">
+        <div class="adm-kpi-lbl">Por unidade</div>
+        <div class="adm-kpi-val">—</div>
+        <div class="adm-kpi-sub">Nenhum item lançado</div>
+      </div>
     </div>
-    <!-- Stats bar: progresso + totais por fase/unidade -->
-    <div class="header-stats" id="header-stats">
-      <!-- Progresso de clientes -->
-      <div class="hstat-prog">
-        <div class="hstat-prog-label">
-          <span>Clientes</span>
-          <span id="prog-txt">0/0</span>
-        </div>
-        <div class="progress-bar">
-          <div class="progress-fill" id="prog-fill" style="width:0%"></div>
-        </div>
-      </div>
-      <!-- Stats dinâmicos: atendidos / sem-venda / total kg / por fase -->
-      <div class="hstat">
-        <div class="hstat-val" id="res-atendidos">0</div>
-        <div class="hstat-lbl">Atendidos</div>
-      </div>
-      <div class="hstat">
-        <div class="hstat-val warn" id="res-sem-venda">0</div>
-        <div class="hstat-lbl">Sem venda</div>
-      </div>
-      <div class="hstat">
-        <div class="hstat-val" id="res-total-kg">0</div>
-        <div class="hstat-lbl">Total kg</div>
-      </div>
-      <!-- Totais por fase inseridos dinamicamente -->
-      <div id="hdr-fase-stats"></div>
-      <!-- Totais por unidade inseridos dinamicamente -->
-      <div id="hdr-unid-stats"></div>
-    </div>
-  </div>
+  </section>
 
   <!-- CORPO -->
   <div class="app-layout">
 
   <!-- PAINEL LATERAL DE CLIENTES (desktop) — esquerda -->
-  <div class="painel-clientes">
+  <aside class="painel-clientes" aria-label="Lista de clientes">
     <div class="painel-titulo">
       Clientes
       <span id="painel-pendentes">0 pendentes</span>
     </div>
     <div id="painel-lista"></div>
-  </div>
+  </aside>
 
   <!-- COLUNA PRINCIPAL — direita -->
-  <div class="app-body">
+  <main class="app-body">
 
     <!-- Botão mobile para ver lista de clientes -->
     <button class="btn-lista-clientes" onclick="abrirDrawer()">
-      📋 Ver lista de clientes
-      <span id="btn-pendentes-badge" style="margin-left:auto;background:var(--warn);color:#000;border-radius:20px;padding:1px 7px;font-size:10px"></span>
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+      Ver lista de clientes
+      <span id="btn-pendentes-badge" class="badge-pendentes"></span>
     </button>
 
     <!-- ══ SEÇÃO 1 — CLIENTE ATUAL ══ -->
@@ -394,7 +386,7 @@
       </div>
     </div>
 
-  </div><!-- /app-body -->
+  </main><!-- /app-body -->
 
   </div><!-- /app-layout -->
 </div><!-- /app -->
