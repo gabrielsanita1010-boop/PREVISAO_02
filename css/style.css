@@ -1445,3 +1445,100 @@ body{
 #modal-novo-usuario.aberta{display:flex}
 
 /* ── FIM DO CSS ── */
+
+/* ══════════════════════════════════════════
+   ADMIN — LAYOUT v2 (grade, barra única, filtros fixos)
+══════════════════════════════════════════ */
+#app-admin{--adm-max:1320px}
+#app-admin .adm-topbar{max-width:var(--adm-max);margin:0 auto;padding:8px 20px;display:flex;align-items:center;gap:20px;min-height:56px}
+#app-admin .adm-topbar .header-logo{font-size:13px;letter-spacing:1px}
+#app-admin .adm-topbar .admin-nav{flex:1;border-top:none;padding:0;gap:4px;justify-content:center}
+#app-admin .admin-tab{display:inline-flex;align-items:center;gap:7px;font-family:var(--sans);font-size:14px;font-weight:500;padding:8px 14px}
+#app-admin .admin-tab svg{flex-shrink:0;opacity:.85}
+#app-admin .adm-user{display:flex;align-items:center;gap:10px;flex-shrink:0}
+#app-admin .adm-user .header-vendedor{max-width:180px;font-size:12px}
+#app-admin .adm-user .btn-icon{display:inline-flex;align-items:center;padding:7px 9px}
+
+#app-admin .admin-body{max-width:var(--adm-max);padding:0 20px 40px}
+
+/* Barra de filtros fixa logo abaixo do cabeçalho */
+#app-admin .adm-filtros{position:sticky;top:57px;z-index:50;margin:0 -20px 18px;padding:10px 20px;border-radius:0;border-left:none;border-right:none;border-top:none;gap:10px 22px;box-shadow:0 2px 10px rgba(0,0,0,.04)}
+#app-admin .adm-filtro-grupo{display:flex;align-items:center;gap:8px}
+#app-admin .adm-filtros .admin-filtro-label{font-family:var(--sans);font-size:12px;font-weight:500;text-transform:none;letter-spacing:0}
+#app-admin .admin-mes-btn{padding:4px 9px}
+#app-admin .adm-select{background:var(--card);border:1px solid var(--border2);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;font-family:var(--sans);max-width:240px;cursor:pointer;outline:none}
+#app-admin .adm-select:focus{border-color:var(--accent)}
+#app-admin .adm-chips{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto}
+#app-admin .adm-chips:empty{display:none}
+
+/* Títulos de seção legíveis */
+#app-admin .admin-section-title{font-family:var(--sans);font-size:15px;font-weight:700;text-transform:none;letter-spacing:0;color:var(--text);margin:26px 0 12px}
+#app-admin .admin-section-title:first-of-type{margin-top:6px}
+#app-admin .admin-rank-titulo,#app-admin .admin-grafico-titulo{font-family:var(--sans);font-size:14px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--text);margin-bottom:12px}
+#app-admin .adm-sub{font-weight:400;color:var(--muted2);font-size:12px;margin-left:4px}
+
+/* KPIs — 4 cards iguais */
+#app-admin .admin-cards{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+#app-admin .adm-kpi{padding:16px 18px;display:flex;flex-direction:column;gap:4px}
+#app-admin .adm-kpi-lbl{font-size:12px;color:var(--muted2);font-weight:500}
+#app-admin .adm-kpi-val{font-family:var(--mono);font-size:30px;font-weight:700;color:var(--accent);line-height:1.1;margin:2px 0}
+#app-admin .adm-kpi-de{font-size:15px;color:var(--muted2);font-weight:600}
+#app-admin .adm-kpi-sub{font-size:12px;color:var(--muted2)}
+#app-admin .adm-kpi .admin-card-prog-bar{height:6px;margin:4px 0 2px}
+#app-admin .adm-kpi .admin-card-prog-fill{height:6px}
+#app-admin .adm-kpi .admin-card-delta{font-size:12px;margin-top:auto;padding-top:4px}
+#app-admin .adm-link{color:inherit;text-decoration:underline;text-underline-offset:2px}
+#app-admin .adm-link.warn{color:var(--warn)}
+
+/* Rankings — clientes 7/12, vendedores 5/12 */
+#app-admin .adm-grid-rank{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:14px;align-items:start}
+#app-admin .admin-rank-box{padding:16px 18px}
+#app-admin .admin-rank-row{padding:7px 6px;gap:10px}
+#app-admin .admin-rank-name{font-size:13px;display:flex;flex-direction:column;line-height:1.3;min-width:0}
+#app-admin .admin-rank-name,#app-admin .adm-rank-nm,#app-admin .adm-rank-meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-admin .adm-rank-meta{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+#app-admin .admin-rank-n{font-size:12px;width:20px}
+#app-admin .admin-rank-bar-wrap{width:90px;height:6px}
+#app-admin .admin-rank-bar{height:6px}
+#app-admin .admin-rank-val{font-size:12px;width:58px;color:var(--text);font-weight:600}
+#app-admin .adm-rank-pct{font-size:11px;font-family:var(--mono);color:var(--muted2);width:34px;text-align:right;flex-shrink:0}
+
+#app-admin .adm-pend{margin-top:14px;padding-top:12px;border-top:1px dashed var(--border2);scroll-margin-top:130px}
+#app-admin .adm-pend-titulo{font-size:12px;font-weight:600;color:var(--warn);margin-bottom:8px}
+#app-admin .adm-pend-lista{display:flex;flex-wrap:wrap;gap:6px}
+#app-admin .adm-pend-chip{font-size:11px;padding:3px 9px;border-radius:20px;background:rgba(230,81,0,.07);border:1px solid rgba(230,81,0,.2);color:#9a3a00}
+
+/* Distribuição — 3 colunas, lista com barras */
+#app-admin .adm-grid-dist{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}
+#app-admin .admin-grafico-box{padding:16px 18px}
+#app-admin .adm-dist-row{display:grid;grid-template-columns:1fr auto;gap:4px 10px;padding:6px 6px 8px;border-radius:6px;cursor:pointer;transition:background .15s,opacity .15s}
+#app-admin .adm-dist-row:hover{background:var(--card)}
+#app-admin .adm-dist-row.ativo{background:rgba(29,158,117,.1)}
+#app-admin .adm-dist-row.apagado{opacity:.4}
+#app-admin .adm-dist-nome{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#app-admin .adm-dist-val{font-size:12px;font-family:var(--mono);color:var(--text);white-space:nowrap}
+#app-admin .adm-dist-val b{color:var(--muted2);font-weight:600;margin-left:6px;display:inline-block;min-width:34px;text-align:right}
+#app-admin .adm-dist-bar{grid-column:1/-1;height:6px;background:var(--card2);border-radius:3px;overflow:hidden}
+#app-admin .adm-dist-bar div{height:100%;border-radius:3px}
+
+@media(max-width:1100px){
+  #app-admin .admin-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #app-admin .adm-grid-rank{grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:800px){
+  #app-admin .adm-topbar{flex-wrap:wrap;gap:6px 12px;padding:8px 14px}
+  #app-admin .adm-topbar .admin-nav{order:3;flex-basis:100%;justify-content:flex-start}
+  #app-admin .adm-user{margin-left:auto}
+  #app-admin .adm-filtros{position:static;margin:0 -14px 14px;padding:10px 14px}
+  #app-admin .admin-body{padding:0 14px 32px}
+  #app-admin .adm-grid-dist{grid-template-columns:1fr}
+  #app-admin .adm-chips{margin-left:0}
+  #app-admin .adm-filtro-grupo{flex-wrap:wrap;min-width:0;max-width:100%}
+  #app-admin .adm-select{max-width:100%;flex:1}
+}
+@media(max-width:520px){
+  #app-admin .admin-cards{grid-template-columns:1fr}
+  #app-admin .admin-rank-bar-wrap{width:50px}
+  #app-admin .admin-tab span{display:none}
+  #app-admin .adm-rank-pct{display:none}
+}

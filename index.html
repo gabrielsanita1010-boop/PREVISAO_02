@@ -413,19 +413,19 @@
 <!-- ════════════════ APP ADMIN ════════════════ -->
 <div id="app-admin" style="display:none">
 
-  <div class="app-header">
-    <div class="header-top">
-      <div class="header-logo">⚙️ Admin</div>
-      <div class="header-info">
+  <div class="app-header adm-header">
+    <div class="adm-topbar">
+      <div class="header-logo">PrevFish · Admin</div>
+      <nav class="admin-nav">
+        <button class="admin-tab ativo" id="tab-dashboard" onclick="adminTab('dashboard')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span>Dashboard</span></button>
+        <button class="admin-tab"       id="tab-usuarios"  onclick="adminTab('usuarios')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c1.9.8 3.1 2.6 3.5 5.2"/></svg><span>Usuários</span></button>
+        <button class="admin-tab"       id="tab-clientes"  onclick="adminTab('clientes')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg><span>Clientes</span></button>
+        <button class="admin-tab"       id="tab-produtos"  onclick="adminTab('produtos')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12c3-5 9-6.5 13-3.5L21 5v14l-5-3.5C12 18.5 6 17 3 12z"/><circle cx="8" cy="11" r=".8" fill="currentColor"/></svg><span>Produtos</span></button>
+      </nav>
+      <div class="adm-user">
         <span class="header-vendedor" id="admin-hdr-nome">—</span>
+        <button class="btn-icon" onclick="sair()" title="Sair"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg></button>
       </div>
-      <button class="btn-icon" onclick="sair()" title="Sair">⏏</button>
-    </div>
-    <div class="admin-nav">
-      <button class="admin-tab ativo" id="tab-dashboard" onclick="adminTab('dashboard')">📊 Dashboard</button>
-      <button class="admin-tab"       id="tab-usuarios"  onclick="adminTab('usuarios')">👥 Usuários</button>
-      <button class="admin-tab"       id="tab-clientes"  onclick="adminTab('clientes')">📋 Clientes</button>
-      <button class="admin-tab"       id="tab-produtos"  onclick="adminTab('produtos')">🐟 Produtos</button>
     </div>
   </div>
 
@@ -433,74 +433,73 @@
 
     <div id="admin-dashboard" class="admin-content">
 
-      <!-- FILTRO DE MÊS -->
-      <div class="admin-filtro-bar">
-        <span class="admin-filtro-label">📅 Mês</span>
-        <div class="admin-meses">
-          <button class="admin-mes-btn" data-mes="1"  onclick="adminSelecionarMes('1')">Jan</button>
-          <button class="admin-mes-btn" data-mes="2"  onclick="adminSelecionarMes('2')">Fev</button>
-          <button class="admin-mes-btn" data-mes="3"  onclick="adminSelecionarMes('3')">Mar</button>
-          <button class="admin-mes-btn" data-mes="4"  onclick="adminSelecionarMes('4')">Abr</button>
-          <button class="admin-mes-btn" data-mes="5"  onclick="adminSelecionarMes('5')">Mai</button>
-          <button class="admin-mes-btn" data-mes="6"  onclick="adminSelecionarMes('6')">Jun</button>
-          <button class="admin-mes-btn" data-mes="7"  onclick="adminSelecionarMes('7')">Jul</button>
-          <button class="admin-mes-btn" data-mes="8"  onclick="adminSelecionarMes('8')">Ago</button>
-          <button class="admin-mes-btn" data-mes="9"  onclick="adminSelecionarMes('9')">Set</button>
-          <button class="admin-mes-btn" data-mes="10" onclick="adminSelecionarMes('10')">Out</button>
-          <button class="admin-mes-btn" data-mes="11" onclick="adminSelecionarMes('11')">Nov</button>
-          <button class="admin-mes-btn" data-mes="12" onclick="adminSelecionarMes('12')">Dez</button>
+      <!-- BARRA DE FILTROS (fixa) -->
+      <div class="admin-filtro-bar adm-filtros">
+        <div class="adm-filtro-grupo">
+          <span class="admin-filtro-label">Mês</span>
+          <div class="admin-meses">
+            <button class="admin-mes-btn" data-mes="1"  onclick="adminSelecionarMes('1')">Jan</button>
+            <button class="admin-mes-btn" data-mes="2"  onclick="adminSelecionarMes('2')">Fev</button>
+            <button class="admin-mes-btn" data-mes="3"  onclick="adminSelecionarMes('3')">Mar</button>
+            <button class="admin-mes-btn" data-mes="4"  onclick="adminSelecionarMes('4')">Abr</button>
+            <button class="admin-mes-btn" data-mes="5"  onclick="adminSelecionarMes('5')">Mai</button>
+            <button class="admin-mes-btn" data-mes="6"  onclick="adminSelecionarMes('6')">Jun</button>
+            <button class="admin-mes-btn" data-mes="7"  onclick="adminSelecionarMes('7')">Jul</button>
+            <button class="admin-mes-btn" data-mes="8"  onclick="adminSelecionarMes('8')">Ago</button>
+            <button class="admin-mes-btn" data-mes="9"  onclick="adminSelecionarMes('9')">Set</button>
+            <button class="admin-mes-btn" data-mes="10" onclick="adminSelecionarMes('10')">Out</button>
+            <button class="admin-mes-btn" data-mes="11" onclick="adminSelecionarMes('11')">Nov</button>
+            <button class="admin-mes-btn" data-mes="12" onclick="adminSelecionarMes('12')">Dez</button>
+          </div>
         </div>
+        <div class="adm-filtro-grupo">
+          <label class="admin-filtro-label" for="adm-sel-vendedor">Vendedor</label>
+          <select id="adm-sel-vendedor" class="adm-select" onchange="_adminSelFiltro('vendedor', this.value)"></select>
+        </div>
+        <div class="adm-filtro-grupo">
+          <label class="admin-filtro-label" for="adm-sel-cliente">Cliente</label>
+          <select id="adm-sel-cliente" class="adm-select" onchange="_adminSelFiltro('cliente', this.value)"></select>
+        </div>
+        <div id="admin-chips-filtros" class="adm-chips"></div>
       </div>
 
-      <!-- CHIPS DE FILTROS ATIVOS -->
-      <div id="admin-chips-filtros"></div>
-
       <!-- CARDS -->
-      <div class="admin-section-title">Visão Geral — <span id="admin-periodo">—</span></div>
+      <h2 class="admin-section-title">Visão geral — <span id="admin-periodo">—</span></h2>
       <div id="admin-dash-cards" class="admin-cards"></div>
 
-      <!-- Rankings e gráficos renderizados via JS em admin-rank-graf-grid -->
-
-      <!-- GRID RANKINGS + GRÁFICOS EMPILHADOS -->
-      <div class="admin-section-title" style="margin-top:20px">Rankings e Distribuição</div>
-      <div class="admin-rank-graf-grid">
-
-        <!-- Rankings -->
-        <div class="admin-rank-box">
-          <div class="admin-rank-titulo">🏆 Top 10 clientes por kg</div>
+      <!-- RANKINGS -->
+      <h2 class="admin-section-title">Rankings</h2>
+      <div class="adm-grid-rank">
+        <section class="admin-rank-box">
+          <div class="admin-rank-titulo">Top 10 clientes <span class="adm-sub">por kg previsto</span></div>
           <div id="admin-rank-clientes"></div>
-        </div>
-        <div class="admin-rank-box">
-          <div class="admin-rank-titulo">👥 Todos os vendedores por kg</div>
-          <div class="admin-rank-scroll" id="admin-rank-vendedores"></div>
-        </div>
+        </section>
+        <section class="admin-rank-box">
+          <div class="admin-rank-titulo">Vendedores <span class="adm-sub">que já enviaram</span></div>
+          <div id="admin-rank-vendedores"></div>
+          <div id="admin-vend-pendentes"></div>
+        </section>
+      </div>
 
-        <!-- Gráficos empilhados -->
-        <div class="admin-graficos-col">
-          <div class="admin-grafico-box">
-            <div class="admin-grafico-titulo">Fase</div>
-            <div style="position:relative;width:100%;height:160px">
-              <canvas id="chartFase" role="img" aria-label="kg por fase">Distribuição por fase.</canvas>
-            </div>
-          </div>
-          <div class="admin-grafico-box">
-            <div class="admin-grafico-titulo">Unidade</div>
-            <div style="position:relative;width:100%;height:120px">
-              <canvas id="chartUnid" role="img" aria-label="kg por unidade">Distribuição por unidade.</canvas>
-            </div>
-          </div>
-          <div class="admin-grafico-box">
-            <div class="admin-grafico-titulo">Linha</div>
-            <div style="position:relative;width:100%;height:160px">
-              <canvas id="chartLinha" role="img" aria-label="kg por linha">Distribuição por linha.</canvas>
-            </div>
-          </div>
-        </div>
-
+      <!-- DISTRIBUIÇÃO -->
+      <h2 class="admin-section-title">Distribuição</h2>
+      <div class="adm-grid-dist">
+        <section class="admin-grafico-box">
+          <div class="admin-grafico-titulo">Por fase</div>
+          <div id="adm-dist-fase"></div>
+        </section>
+        <section class="admin-grafico-box">
+          <div class="admin-grafico-titulo">Por linha</div>
+          <div id="adm-dist-linha"></div>
+        </section>
+        <section class="admin-grafico-box">
+          <div class="admin-grafico-titulo">Por unidade</div>
+          <div id="adm-dist-unid"></div>
+        </section>
       </div>
 
       <!-- TABELA VENDEDORES -->
-      <div class="admin-section-title" style="margin-top:20px">Status por Vendedor</div>
+      <h2 class="admin-section-title">Status por vendedor</h2>
       <div id="admin-dash-tabela"></div>
 
     </div>

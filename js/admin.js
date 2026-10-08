@@ -9,6 +9,8 @@ let _adminLancamentos = [];
 let _adminMesSel      = "";
 let _adminAnoSel      = "";
 let _charts           = {};
+let _adminLancAnterior = null;   // lançamentos do mês anterior (comparação)
+let _adminPeriodoAnt   = null;
 
 let _adminFiltros = {
   fase: null, linha: null, unidade: null, vendedor: null, cliente: null
@@ -56,13 +58,21 @@ async function entrarAdmin() {
 // ════════════════════════════════════════════════
 async function _adminCarregarMes(mes, ano) {
   mostrarLoading("Carregando dados...");
-  try {
-    const r = await jsonp(`${API_URL}?action=getLancamentos&mes=${mes}&ano=${ano}&codVendedor=`);
-    _adminLancamentos = r.lancamentos || [];
-  } catch(e) {
-    console.error("Admin:", e);
+  const m = parseInt(mes), a = parseInt(ano);
+  const mAnt = m === 1 ? 12 : m - 1;
+  const aAnt = m === 1 ? a - 1 : a;
+  const [atual, anterior] = await Promise.allSettled([
+    jsonp(`${API_URL}?action=getLancamentos&mes=${mes}&ano=${ano}&codVendedor=`),
+    jsonp(`${API_URL}?action=getLancamentos&mes=${mAnt}&ano=${aAnt}&codVendedor=`),
+  ]);
+  if (atual.status === "fulfilled") {
+    _adminLancamentos = atual.value.lancamentos || [];
+  } else {
+    console.error("Admin:", atual.reason);
     _adminLancamentos = [];
   }
+  _adminLancAnterior = anterior.status === "fulfilled" ? (anterior.value.lancamentos || []) : null;
+  _adminPeriodoAnt   = { mes: mAnt, ano: aAnt };
   esconderLoading();
 }
 
@@ -87,8 +97,8 @@ function _chaveCli(l) {
   return String(l.COD_CLIENTE || "").trim() + "-" + String(l.LOJA ?? "").trim();
 }
 
-function _adminDadosFiltrados() {
-  return _adminLancamentos.filter(l => {
+function _adminDadosFiltrados(lista) {
+  return (lista || _adminLancamentos).filter(l => {
     const fase  = String(l.FASE    || "").trim();
     const linha = String(l.SUB_GRUPO || l["dProduto.SUB_GRUPO"] || "").trim();
     const unid  = String(l.UNIDADE || "").trim();
@@ -105,6 +115,11 @@ function _adminDadosFiltrados() {
 
 function _aplicarFiltro(key, value) {
   _adminFiltros[key] = (_adminFiltros[key] === value) ? null : value;
+  renderDashboard();
+}
+
+function _adminSelFiltro(key, value) {
+  _adminFiltros[key] = value || null;
   renderDashboard();
 }
 
@@ -149,191 +164,167 @@ function renderDashboard() {
   const nomeMes = MESES[+_adminMesSel] || _adminMesSel;
   document.getElementById("admin-periodo").textContent = `${nomeMes}/${_adminAnoSel}`;
 
-  // ── Botões de mês ──
   document.querySelectorAll(".admin-mes-btn").forEach(b =>
     b.classList.toggle("ativo", b.dataset.mes === _adminMesSel)
   );
 
-  // ── Chips de filtros ativos ──
-  _renderChips();
-
-  // ── Dados filtrados ──
   const dados = _adminDadosFiltrados();
+  const kgLinha = l => (parseFloat(l.QUANTIDADE) || 0) * (parseFloat(l.PESO_LIQUIDO) || 25);
 
   // ── Vendedores (apenas perfil VENDEDOR) ──
   const vendedores = (estado._todosVendedores || []).filter(v =>
     String(v.perfil || "VENDEDOR").toUpperCase() === "VENDEDOR"
   );
+  const nomeVend = {};
+  vendedores.forEach(v => { nomeVend[String(v.codigo || "").trim()] = v.nome || "—"; });
 
-  // ── Agrega por vendedor ──
+  // ── Agregações ──
   const porVendedor = {};
+  const porCliente  = {};
+  const porFase = {}, porLinha = {}, porUnid = {};
   dados.forEach(l => {
+    const kg   = kgLinha(l);
     const codV = String(l.COD_VENDEDOR || "").trim();
+    const k    = _chaveCli(l);
     if (!porVendedor[codV]) porVendedor[codV] = { kg: 0, clientes: new Set() };
-    const qtd  = parseFloat(l.QUANTIDADE)   || 0;
-    const peso = parseFloat(l.PESO_LIQUIDO) || 25;
-    porVendedor[codV].kg += qtd * peso;
-    porVendedor[codV].clientes.add(_chaveCli(l));
+    porVendedor[codV].kg += kg;
+    porVendedor[codV].clientes.add(k);
+
+    if (!porCliente[k]) porCliente[k] = { cod: k, kg: 0, nome: _adminNomeCliente(l), vend: nomeVend[codV] || l.VENDEDOR || "" };
+    porCliente[k].kg += kg;
+
+    const fase  = String(l.FASE || "Outros").trim();
+    const linha = String(l.SUB_GRUPO || l["dProduto.SUB_GRUPO"] || "Outros").trim();
+    const unid  = String(l.UNIDADE || "—").trim();
+    porFase[fase]   = (porFase[fase]   || 0) + kg;
+    porLinha[linha] = (porLinha[linha] || 0) + kg;
+    porUnid[unid]   = (porUnid[unid]   || 0) + kg;
   });
 
   // ── Totais ──
   const totalKg    = Object.values(porVendedor).reduce((s,v) => s + v.kg, 0);
   const concluidos = vendedores.filter(v => porVendedor[String(v.codigo||"").trim()]);
-  const pendentes  = vendedores.length - concluidos.length;
-  const totalCli   = Object.values(porVendedor).reduce((s,v) => s + v.clientes.size, 0);
+  const pendentesL = vendedores.filter(v => !porVendedor[String(v.codigo||"").trim()]);
   const pct        = vendedores.length ? Math.round(concluidos.length / vendedores.length * 100) : 0;
+  const totalCli   = Object.keys(porCliente).length;
   const diasUteis  = _diasUteis(_adminMesSel, _adminAnoSel);
   const mediaDia   = diasUteis ? totalKg / diasUteis : 0;
-  // Clientes ativos = clientes da d_clientes cujo codVendedor está na lista de vendedores
   const codsVend   = new Set(vendedores.map(v => String(v.codigo||"").trim()));
   const totalCliAtivos = (estado._todosClientes || []).filter(c =>
     codsVend.has(String(c.codVendedor||"").trim())
   ).length;
   const pctCli = totalCliAtivos ? Math.round(totalCli / totalCliAtivos * 100) : 0;
 
+  // ── Comparação com mês anterior (mesmos filtros) ──
+  let deltaHtml = `<div class="admin-card-delta">Sem dados do mês anterior</div>`;
+  if (_adminLancAnterior && _adminPeriodoAnt) {
+    const kgAnt = _adminDadosFiltrados(_adminLancAnterior).reduce((s,l) => s + kgLinha(l), 0);
+    const rotAnt = `${(MESES[_adminPeriodoAnt.mes] || "").slice(0,3).toLowerCase()}/${String(_adminPeriodoAnt.ano).slice(-2)}`;
+    if (kgAnt > 0) {
+      const d = Math.round((totalKg - kgAnt) / kgAnt * 100);
+      const cls = d > 0 ? "ok" : d < 0 ? "warn" : "";
+      const seta = d > 0 ? "▲" : d < 0 ? "▼" : "=";
+      deltaHtml = `<div class="admin-card-delta ${cls}">${seta} ${Math.abs(d)}% vs ${rotAnt} (${nfTCard(kgAnt)})</div>`;
+    } else {
+      deltaHtml = `<div class="admin-card-delta">Sem previsão em ${rotAnt}</div>`;
+    }
+  }
+
+  // ── Mix por fase ──
+  const fases = Object.entries(porFase).sort((a,b) => b[1]-a[1]);
+  const pctDe = v => totalKg ? Math.round(v / totalKg * 100) : 0;
+  const mixPrincipal = fases[0];
+  const mixResto = fases.slice(1, 3).map(([f,v]) => `${_adminTitulo(f)} ${pctDe(v)}%`).join(" · ");
+
   // ── CARDS ──
   document.getElementById("admin-dash-cards").innerHTML = `
-    <div class="admin-card admin-card-accent">
-      <div class="admin-card-val">${nfTCard(totalKg)}</div>
-      <div class="admin-card-lbl">Total kg previsto · ${diasUteis} dias úteis (Seg–Sáb)</div>
-      <div class="admin-card-kg-split">
-        <div class="admin-card-kg-sep"></div>
-        <div class="admin-card-kg-sub">
-          <div class="admin-card-kg-val">${nfTCard(mediaDia)}</div>
-          <div class="admin-card-kg-lbl">Média por dia útil</div>
-        </div>
-        <div class="admin-card-kg-sep"></div>
-        <div class="admin-card-kg-sub">
-          <div class="admin-card-kg-val">${diasUteis}</div>
-          <div class="admin-card-kg-lbl">Dias úteis</div>
-        </div>
-      </div>
+    <div class="admin-card adm-kpi">
+      <div class="adm-kpi-lbl">Total previsto</div>
+      <div class="adm-kpi-val">${nfTCard(totalKg)}</div>
+      <div class="adm-kpi-sub">${nfTCard(mediaDia)}/dia · ${diasUteis} dias úteis (seg–sáb)</div>
+      ${deltaHtml}
     </div>
-    <div class="admin-card">
-      <div class="admin-card-lbl" style="margin-bottom:6px">Vendedores</div>
-      <div class="admin-card-vend-row">
-        <span class="admin-card-vend-lbl">Total</span>
-        <strong>${vendedores.length}</strong>
-      </div>
-      <div class="admin-card-vend-row">
-        <span class="admin-card-vend-lbl">Concluídos</span>
-        <span class="admin-badge ok">${concluidos.length} ✅</span>
-      </div>
-      <div class="admin-card-vend-row">
-        <span class="admin-card-vend-lbl">Pendentes</span>
-        <span class="admin-badge warn">${pendentes} ⏳</span>
-      </div>
+    <div class="admin-card adm-kpi">
+      <div class="adm-kpi-lbl">Vendedores que enviaram</div>
+      <div class="adm-kpi-val">${concluidos.length}<span class="adm-kpi-de"> de ${vendedores.length}</span></div>
       <div class="admin-card-prog-bar"><div class="admin-card-prog-fill" style="width:${pct}%"></div></div>
-      <div class="admin-card-delta ok" style="text-align:right">${pct}% concluído</div>
+      <div class="adm-kpi-sub">${pct}% concluído${pendentesL.length ? ` · <a href="#admin-vend-pendentes" class="adm-link warn">${pendentesL.length} pendente${pendentesL.length>1?"s":""}</a>` : ""}</div>
     </div>
-    <div class="admin-card">
-      <div class="admin-card-lbl" style="margin-bottom:4px">Clientes</div>
-      <div class="admin-card-cli-row">
-        <div>
-          <div class="admin-card-val" style="font-size:18px">${totalCli}</div>
-          <div class="admin-card-lbl">Previstos</div>
-        </div>
-        <div class="admin-card-cli-sep">|</div>
-        <div>
-          <div class="admin-card-val" style="font-size:18px;color:var(--muted2)">${totalCliAtivos}</div>
-          <div class="admin-card-lbl">Ativos</div>
-        </div>
-      </div>
-      <div class="admin-card-prog-bar" style="margin-top:6px"><div class="admin-card-prog-fill" style="width:${pctCli}%"></div></div>
-      <div class="admin-card-delta ok" style="text-align:right">${pctCli}% da carteira prevista</div>
+    <div class="admin-card adm-kpi">
+      <div class="adm-kpi-lbl">Cobertura da carteira</div>
+      <div class="adm-kpi-val">${totalCli}<span class="adm-kpi-de"> de ${totalCliAtivos}</span></div>
+      <div class="admin-card-prog-bar"><div class="admin-card-prog-fill" style="width:${pctCli}%"></div></div>
+      <div class="adm-kpi-sub">${pctCli}% dos clientes ativos com previsão</div>
+    </div>
+    <div class="admin-card adm-kpi">
+      <div class="adm-kpi-lbl">Mix por fase</div>
+      <div class="adm-kpi-val">${mixPrincipal ? pctDe(mixPrincipal[1]) + "%" : "—"}</div>
+      <div class="adm-kpi-sub">${mixPrincipal ? _adminTitulo(mixPrincipal[0]) : "Sem dados"}</div>
+      <div class="admin-card-delta">${mixResto}</div>
     </div>`;
 
-  // ── RANKINGS ──
-  const porCliente = {};
-  dados.forEach(l => {
-    const k    = _chaveCli(l);
-    const lojaN = String(l.LOJA ?? "").trim();
-    const nome = String(l.CLIENTE     || "—") + (lojaN ? " — Loja " + lojaN : "");
-    if (!porCliente[k]) porCliente[k] = { nome, kg: 0, cod: k };
-    const qtd  = parseFloat(l.QUANTIDADE)   || 0;
-    const peso = parseFloat(l.PESO_LIQUIDO) || 25;
-    porCliente[k].kg += qtd * peso;
-  });
-  const topCli  = Object.values(porCliente).sort((a,b) => b.kg - a.kg).slice(0,10);
-  const maxCli  = topCli[0]?.kg || 1;
-
-  // Todos os vendedores ordenados por kg desc
-  const todosVend = vendedores
-    .map(v => ({ nome: v.nome||"—", kg: porVendedor[String(v.codigo||"").trim()]?.kg||0, cod: String(v.codigo||"").trim() }))
-    .sort((a,b) => b.kg - a.kg);
-  const maxVend = todosVend[0]?.kg || 1;
-
-  const mkRankCli = (c, i) => {
+  // ── RANKING CLIENTES ──
+  const topCli = Object.values(porCliente).sort((a,b) => b.kg - a.kg).slice(0,10);
+  const maxCli = topCli[0]?.kg || 1;
+  const mostraVendNoCli = !_adminFiltros.vendedor;
+  document.getElementById("admin-rank-clientes").innerHTML = topCli.map((c, i) => {
     const ativo = _adminFiltros.cliente === c.cod;
-    return `<div class="admin-rank-row${ativo?" ativo":""}" onclick="_aplicarFiltro('cliente','${c.cod}')" title="Filtrar por ${c.nome}">
+    return `<div class="admin-rank-row${ativo?" ativo":""}" onclick="_aplicarFiltro('cliente','${c.cod}')" title="Filtrar por ${_esc(c.nome)}">
       <span class="admin-rank-n">${i+1}</span>
-      <span class="admin-rank-name">${c.nome}</span>
+      <span class="admin-rank-name"><span class="adm-rank-nm">${_esc(c.nome)}</span>${mostraVendNoCli && c.vend ? `<small class="adm-rank-meta">${_esc(c.vend)}</small>` : ""}</span>
       <div class="admin-rank-bar-wrap"><div class="admin-rank-bar" style="width:${Math.round(c.kg/maxCli*100)}%"></div></div>
       <span class="admin-rank-val">${nfT(c.kg)}</span>
+      <span class="adm-rank-pct">${pctDe(c.kg)}%</span>
     </div>`;
-  };
-  const mkRankVend = (v, i) => {
-    const ativo  = _adminFiltros.vendedor === v.cod;
-    const concl  = v.kg > 0;
-    const num    = concl ? i+1 : "—";
-    const badge  = concl
-      ? `<span class="admin-badge ok" style="font-size:9px;padding:1px 6px">✅</span>`
-      : `<span class="admin-badge warn" style="font-size:9px;padding:1px 6px">⏳</span>`;
-    return `<div class="admin-rank-row${ativo?" ativo":""}" onclick="_aplicarFiltro('vendedor','${v.cod}')" title="Filtrar por ${v.nome}">
-      <span class="admin-rank-n">${num}</span>
-      <span class="admin-rank-name">${v.nome}</span>
+  }).join("") || '<p class="admin-vazio">Sem dados</p>';
+
+  // ── RANKING VENDEDORES (só quem enviou) ──
+  const vendKg = concluidos
+    .map(v => { const cod = String(v.codigo||"").trim(); return { cod, nome: v.nome || "—", kg: porVendedor[cod].kg, cli: porVendedor[cod].clientes.size }; })
+    .sort((a,b) => b.kg - a.kg);
+  const maxVend = vendKg[0]?.kg || 1;
+  document.getElementById("admin-rank-vendedores").innerHTML = vendKg.map((v, i) => {
+    const ativo = _adminFiltros.vendedor === v.cod;
+    return `<div class="admin-rank-row${ativo?" ativo":""}" onclick="_aplicarFiltro('vendedor','${v.cod}')" title="Filtrar por ${_esc(v.nome)}">
+      <span class="admin-rank-n">${i+1}</span>
+      <span class="admin-rank-name"><span class="adm-rank-nm">${_esc(v.nome)}</span><small class="adm-rank-meta">${v.cli} cliente${v.cli!==1?"s":""}</small></span>
       <div class="admin-rank-bar-wrap"><div class="admin-rank-bar" style="width:${Math.round(v.kg/maxVend*100)}%"></div></div>
       <span class="admin-rank-val">${nfT(v.kg)}</span>
-      ${badge}
+      <span class="adm-rank-pct">${pctDe(v.kg)}%</span>
     </div>`;
-  };
+  }).join("") || '<p class="admin-vazio">Nenhum vendedor enviou ainda.</p>';
 
-  // Rankings renderizados nos containers do novo grid
-  const elCli  = document.getElementById("admin-rank-clientes");
-  const elVend = document.getElementById("admin-rank-vendedores");
-  if (elCli)  elCli.innerHTML  = topCli.map(mkRankCli).join("") || '<p class="admin-vazio">Sem dados</p>';
-  if (elVend) elVend.innerHTML = todosVend.map(mkRankVend).join("") || '<p class="admin-vazio">Sem dados</p>';
+  document.getElementById("admin-vend-pendentes").innerHTML = pendentesL.length ? `
+    <div class="adm-pend">
+      <div class="adm-pend-titulo">Pendentes (${pendentesL.length})</div>
+      <div class="adm-pend-lista">${pendentesL
+        .map(v => `<span class="adm-pend-chip">${_esc(v.nome || "—")}</span>`).join("")}</div>
+    </div>` : "";
 
-  // ── AGREGA FASE, LINHA, UNIDADE ──
-  const porFase  = {};
-  const porLinha = {};
-  const porUnid  = {};
-
-  dados.forEach(l => {
-    const qtd  = parseFloat(l.QUANTIDADE)   || 0;
-    const peso = parseFloat(l.PESO_LIQUIDO) || 25;
-    const kg   = qtd * peso;
-    const fase  = String(l.FASE    || "Outros").trim();
-    const linha = String(l.SUB_GRUPO || l["dProduto.SUB_GRUPO"] || "Outros").trim();
-    const unidRaw = String(l.UNIDADE || "—").trim().toUpperCase();
-    const unid = unidRaw === "KG" ? "Granel" : unidRaw === "SC" ? "Sacaria" : unidRaw === "BG" ? "Bag" : unidRaw;
-    porFase[fase]   = (porFase[fase]   || 0) + kg;
-    porLinha[linha] = (porLinha[linha] || 0) + kg;
-    porUnid[unid]   = (porUnid[unid]   || 0) + kg;
-  });
-
+  // ── DISTRIBUIÇÃO ──
   const sortDesc = obj => Object.entries(obj).sort((a,b) => b[1]-a[1]);
+  _renderDist("adm-dist-fase",  "fase",    sortDesc(porFase),  totalKg, CORES_FASE[0]);
+  _renderDist("adm-dist-linha", "linha",   sortDesc(porLinha), totalKg, CORES_LINHA[0]);
+  _renderDist("adm-dist-unid",  "unidade", sortDesc(porUnid),  totalKg, CORES_UNID[0], _adminNomeUnid);
 
-  _renderGrafico("chartFase",  "fase",    sortDesc(porFase),  CORES_FASE);
-  _renderGrafico("chartLinha", "linha",   sortDesc(porLinha), CORES_LINHA);
-  _renderGrafico("chartUnid",  "unidade", sortDesc(porUnid),  CORES_UNID);
+  // ── SELECTS DA BARRA DE FILTROS ──
+  _adminPreencherSelects(vendedores);
+  _renderChips();
 
   // ── TABELA VENDEDORES ──
   const linhasTabela = vendedores.map(v => {
     const cod   = String(v.codigo || "").trim();
     const nome  = String(v.nome   || "—");
-    const dados = porVendedor[cod];
-    const kg    = dados ? nfT(dados.kg) : "—";
-    const cli   = dados ? dados.clientes.size : 0;
+    const d     = porVendedor[cod];
     const ativo = _adminFiltros.vendedor === cod;
-    const status = dados
-      ? `<span class="admin-badge ok">✅ Concluído</span>`
-      : `<span class="admin-badge warn">⏳ Pendente</span>`;
-    return `<tr class="admin-tr-click${ativo?" ativo":""}" onclick="_aplicarFiltro('vendedor','${cod}')" title="Filtrar por ${nome}">
-      <td><strong>${nome}</strong></td>
+    const status = d
+      ? `<span class="admin-badge ok">Concluído</span>`
+      : `<span class="admin-badge warn">Pendente</span>`;
+    return `<tr class="admin-tr-click${ativo?" ativo":""}" onclick="_aplicarFiltro('vendedor','${cod}')" title="Filtrar por ${_esc(nome)}">
+      <td><strong>${_esc(nome)}</strong></td>
       <td>${status}</td>
-      <td style="font-family:var(--mono);text-align:right">${cli}</td>
-      <td style="font-family:var(--mono);font-weight:700;text-align:right;color:var(--accent)">${kg}</td>
+      <td style="font-family:var(--mono);text-align:right">${d ? d.clientes.size : "—"}</td>
+      <td style="font-family:var(--mono);font-weight:700;text-align:right;color:var(--accent)">${d ? nfT(d.kg) : "—"}</td>
     </tr>`;
   }).join("");
 
@@ -343,32 +334,93 @@ function renderDashboard() {
         <thead><tr>
           <th>Vendedor</th><th>Status</th>
           <th style="text-align:right">Clientes</th>
-          <th style="text-align:right">Total kg</th>
+          <th style="text-align:right">Total</th>
         </tr></thead>
         <tbody>${linhasTabela || '<tr><td colspan="4" style="text-align:center;color:var(--muted2);padding:24px">Nenhum lançamento.</td></tr>'}</tbody>
       </table>
     </div>`;
 }
 
+// ── Helpers do dashboard ──
+function _esc(t) {
+  return String(t ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+}
+
+// "ENGORDA" → "Engorda"; mantém siglas curtas (LTDA, ME, SC...)
+function _adminTitulo(t) {
+  return String(t || "").toLowerCase().replace(/(^|[\s\-\/(.])([a-zà-ú])/g, (m, p, c) => p + c.toUpperCase())
+    .replace(/\b(Ltda|Me|Epp|Sa|S\/a)\b/g, x => x.toUpperCase())
+    .replace(/ (De|Da|Do|Dos|Das|E) /g, x => x.toLowerCase());
+}
+
+function _adminNomeUnid(u) {
+  const x = String(u || "").toUpperCase();
+  return x === "KG" ? "Granel" : x === "SC" ? "Sacaria" : x === "BG" ? "Bag" : _adminTitulo(u);
+}
+
+// Mostra "— Loja N" apenas quando o cliente tem mais de uma loja (ou loja ≠ 1)
+function _adminNomeCliente(l) {
+  const cod  = String(l.COD_CLIENTE || "").trim();
+  const loja = String(l.LOJA ?? "").trim();
+  const nome = String(l.CLIENTE || "—");
+  const multi = (estado._todosClientes || []).filter(c => String(c.codCliente ?? c.codigo ?? "").trim() === cod).length > 1
+             || _adminLancamentos.some(o => String(o.COD_CLIENTE||"").trim() === cod && String(o.LOJA ?? "").trim() !== loja);
+  return (loja && (multi || loja !== "1")) ? `${nome} — Loja ${loja}` : nome;
+}
+
+// Lista de barras horizontais clicável (substitui os gráficos Chart.js)
+function _renderDist(elId, filterKey, entries, total, cor, rotulo) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (!entries.length) { el.innerHTML = '<p class="admin-vazio">Sem dados</p>'; return; }
+  const max = entries[0][1] || 1;
+  const filtro = _adminFiltros[filterKey];
+  el.innerHTML = entries.map(([k, v]) => {
+    const nome = rotulo ? rotulo(k) : _adminTitulo(k);
+    const pct  = total ? Math.round(v / total * 100) : 0;
+    const cls  = filtro ? (filtro === k ? " ativo" : " apagado") : "";
+    return `<div class="adm-dist-row${cls}" onclick="_aplicarFiltro('${filterKey}', ${_esc(JSON.stringify(k))})" title="Filtrar por ${_esc(nome)}">
+      <span class="adm-dist-nome">${_esc(nome)}</span>
+      <span class="adm-dist-val">${nfT(v)} <b>${pct < 1 && v > 0 ? "<1" : pct}%</b></span>
+      <div class="adm-dist-bar"><div style="width:${Math.max(2, Math.round(v / max * 100))}%;background:${cor}"></div></div>
+    </div>`;
+  }).join("");
+}
+
+function _adminPreencherSelects(vendedores) {
+  const selV = document.getElementById("adm-sel-vendedor");
+  const selC = document.getElementById("adm-sel-cliente");
+  if (selV) {
+    const ops = [...vendedores].sort((a,b) => String(a.nome||"").localeCompare(String(b.nome||"")))
+      .map(v => { const c = String(v.codigo||"").trim(); return `<option value="${_esc(c)}"${_adminFiltros.vendedor===c?" selected":""}>${_esc(v.nome||c)}</option>`; });
+    selV.innerHTML = `<option value="">Todos</option>` + ops.join("");
+  }
+  if (selC) {
+    // Clientes com lançamento no mês (respeitando o filtro de vendedor)
+    const mapa = {};
+    _adminLancamentos.forEach(l => {
+      if (_adminFiltros.vendedor && String(l.COD_VENDEDOR||"").trim() !== _adminFiltros.vendedor) return;
+      mapa[_chaveCli(l)] = _adminNomeCliente(l);
+    });
+    const ops = Object.entries(mapa).sort((a,b) => a[1].localeCompare(b[1]))
+      .map(([k, n]) => `<option value="${_esc(k)}"${_adminFiltros.cliente===k?" selected":""}>${_esc(n)}</option>`);
+    selC.innerHTML = `<option value="">Todos</option>` + ops.join("");
+  }
+}
+
 // ── Chips de filtros ativos ──
 function _renderChips() {
-  const ativos = Object.entries(_adminFiltros).filter(([,v]) => v !== null);
   const el = document.getElementById("admin-chips-filtros");
   if (!el) return;
+  const ativos = Object.entries(_adminFiltros).filter(([,v]) => v !== null);
   if (!ativos.length) { el.innerHTML = ""; return; }
-
-  const chips = ativos.map(([k, v]) =>
-    `<span class="admin-chip">
-      ${_FILTRO_NOME[k]}: <strong>${v}</strong>
-      <button onclick="_aplicarFiltro('${k}','${v}')" title="Remover filtro">✕</button>
+  const rot = (k, v) => k === "unidade" ? _adminNomeUnid(v) : (k === "fase" || k === "linha") ? _adminTitulo(v) : null;
+  const chips = ativos.filter(([k]) => rot(k, "") !== null).map(([k, v]) =>
+    `<span class="admin-chip">${_FILTRO_NOME[k]}: <strong>${_esc(rot(k, v))}</strong>
+      <button onclick="_aplicarFiltro('${k}', ${_esc(JSON.stringify(v))})" title="Remover filtro">✕</button>
     </span>`
   ).join("");
-
-  el.innerHTML = `
-    <div class="admin-chips-bar">
-      ${chips}
-      <button class="admin-chip-limpar" onclick="adminLimparFiltros()">🗑️ Limpar filtros</button>
-    </div>`;
+  el.innerHTML = `${chips}<button class="admin-chip-limpar" onclick="adminLimparFiltros()">Limpar filtros</button>`;
 }
 
 // ── Gráfico interativo reutilizável ──
