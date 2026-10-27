@@ -93,8 +93,23 @@ async function adminSelecionarMes(mes) {
 // FILTROS CRUZADOS
 // ════════════════════════════════════════════════
 // Cada loja é um cliente distinto: chave = código do cliente + loja
+// Linhas sem COD_CLIENTE na planilha: usa a chave de outra linha com o
+// mesmo nome (se houver) ou agrupa pelo nome — senão todas viravam um
+// único "cliente" no ranking
+let _chavePorNome = null, _chavePorNomeFonte = null;
 function _chaveCli(l) {
-  return String(l.COD_CLIENTE || "").trim() + "-" + String(l.LOJA ?? "").trim();
+  const cod = String(l.COD_CLIENTE || "").trim();
+  if (cod) return cod + "-" + String(l.LOJA ?? "").trim();
+  if (_chavePorNomeFonte !== _adminLancamentos) {
+    _chavePorNomeFonte = _adminLancamentos;
+    _chavePorNome = new Map();
+    _adminLancamentos.forEach(o => {
+      const c = String(o.COD_CLIENTE || "").trim();
+      if (c) _chavePorNome.set(String(o.CLIENTE || "").trim().toUpperCase(), c + "-" + String(o.LOJA ?? "").trim());
+    });
+  }
+  const nome = String(l.CLIENTE || "").trim().toUpperCase();
+  return _chavePorNome.get(nome) || "NOME:" + nome;
 }
 
 function _adminDadosFiltrados(lista) {
@@ -269,7 +284,7 @@ function renderDashboard() {
   const mostraVendNoCli = !_adminFiltros.vendedor;
   document.getElementById("admin-rank-clientes").innerHTML = topCli.map((c, i) => {
     const ativo = _adminFiltros.cliente === c.cod;
-    return `<div class="admin-rank-row${ativo?" ativo":""}" onclick="_aplicarFiltro('cliente','${c.cod}')" title="Filtrar por ${_esc(c.nome)}">
+    return `<div class="admin-rank-row${ativo?" ativo":""}" onclick="_aplicarFiltro('cliente', ${_esc(JSON.stringify(c.cod))})" title="Filtrar por ${_esc(c.nome)}">
       <span class="admin-rank-n">${i+1}</span>
       <span class="admin-rank-name"><span class="adm-rank-nm">${_esc(c.nome)}</span>${mostraVendNoCli && c.vend ? `<small class="adm-rank-meta">${_esc(c.vend)}</small>` : ""}</span>
       <div class="admin-rank-bar-wrap"><div class="admin-rank-bar" style="width:${Math.round(c.kg/maxCli*100)}%"></div></div>
@@ -363,6 +378,7 @@ function _adminNomeCliente(l) {
   const cod  = String(l.COD_CLIENTE || "").trim();
   const loja = String(l.LOJA ?? "").trim();
   const nome = String(l.CLIENTE || "—");
+  if (!cod) return nome;
   const multi = (estado._todosClientes || []).filter(c => String(c.codCliente ?? c.codigo ?? "").trim() === cod).length > 1
              || _adminLancamentos.some(o => String(o.COD_CLIENTE||"").trim() === cod && String(o.LOJA ?? "").trim() !== loja);
   return (loja && (multi || loja !== "1")) ? `${nome} — Loja ${loja}` : nome;
