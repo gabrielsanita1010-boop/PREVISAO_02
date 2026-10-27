@@ -415,7 +415,7 @@ async function entrar() {
           unidade:     l.UNIDADE || "",
           quantidade:  qtd,
           pesoLiquido: pesoU,
-          totalKg:     qtd * pesoU,
+          totalKg:     kgDoLancamento(l), // TOTAL_KG da planilha
           observacao:  l.OBSERVACAO || "",
           _doServidor: true,
         });

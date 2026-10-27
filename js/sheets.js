@@ -90,3 +90,27 @@ function cacheSet(chave, dados) {
     localStorage.setItem("pf_cache_" + chave, JSON.stringify({ ts: Date.now(), dados }));
   } catch {}
 }
+
+// ════════════════════════════════════════════════
+// KG DE UM LANÇAMENTO — fonte única de verdade
+// A coluna TOTAL_KG da planilha é o valor oficial (inclusive
+// quando ajustada manualmente). Só recalculamos QUANTIDADE ×
+// PESO_LIQUIDO quando TOTAL_KG estiver vazio/inválido.
+// ════════════════════════════════════════════════
+const _KG_PADRAO_UNIDADE = { BG: 750, KG: 1, SC: 25 };
+function _numBR(v) {
+  if (typeof v === "number") return v;
+  const s = String(v ?? "").trim();
+  if (!s) return NaN;
+  // "1.234,5" → 1234.5 ; "0,5" → 0.5 ; "1234.5" → 1234.5
+  return parseFloat(s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s);
+}
+function kgDoLancamento(l) {
+  const total = _numBR(l.TOTAL_KG);
+  if (!isNaN(total)) return total;
+  const qtd  = _numBR(l.QUANTIDADE) || 0;
+  const peso = _numBR(l.PESO_LIQUIDO)
+    || _KG_PADRAO_UNIDADE[String(l.UNIDADE || "").toUpperCase().trim()]
+    || 25;
+  return qtd * peso;
+}

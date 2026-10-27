@@ -169,7 +169,7 @@ function renderDashboard() {
   );
 
   const dados = _adminDadosFiltrados();
-  const kgLinha = l => (parseFloat(l.QUANTIDADE) || 0) * (parseFloat(l.PESO_LIQUIDO) || 25);
+  const kgLinha = kgDoLancamento; // usa TOTAL_KG da planilha
 
   // ── Vendedores (apenas perfil VENDEDOR) ──
   const vendedores = (estado._todosVendedores || []).filter(v =>
